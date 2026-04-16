@@ -1,26 +1,19 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  /* Paksa background agar tidak di-hijack oleh Dark Mode bawaan PC/HP */
+  body {
+    background-color: #FDFCF8 !important;
+    color: #2C352D !important;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  
+  /* Otomatis terapkan Playfair ke semua judul */
+  h1, h2, h3, .font-playfair {
+    font-family: var(--font-playfair), serif;
+  }
+  
+  /* Otomatis terapkan DM Sans ke teks biasa */
+  p, span, a, button, div {
+    font-family: var(--font-dmsans), sans-serif;
+  }
 }
