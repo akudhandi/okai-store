@@ -50,12 +50,12 @@ export default function RootLayout({
                 <Link href="/shop" className="text-[15px] font-medium text-[#5A665A] hover:text-[#D4A373] transition-colors">
                   Belanja
                 </Link>
-                <Link href="#affiliate" className="text-[15px] font-medium text-[#5A665A] hover:text-[#D4A373] transition-colors">
+                <Link href="/#affiliate" className="text-[15px] font-medium text-[#5A665A] hover:text-[#D4A373] transition-colors">
                   Affiliate
                 </Link>
               </div>
 
-              {/* Kanan: Icons */}
+             {/* Kanan: Icons */}
               <div className="flex items-center gap-6">
                 <Link href="/cart" className="relative p-2 text-[#2C352D] hover:text-[#D4A373] transition-colors">
                   <ShoppingCart size={24} strokeWidth={1.5} />
@@ -64,7 +64,9 @@ export default function RootLayout({
                   </span>
                 </Link>
                 <div className="h-4 w-px bg-[#EAE6D9] hidden md:block"></div>
-                <Link href="/checkout" className="hidden md:flex items-center gap-2 text-sm font-medium text-[#2C352D] hover:text-[#D4A373] transition-colors">
+                
+                {/* FIX: Ubah href="/checkout" jadi href="/login" di sini 👇 */}
+                <Link href="/login" className="hidden md:flex items-center gap-2 text-sm font-medium text-[#2C352D] hover:text-[#D4A373] transition-colors">
                   <User size={24} strokeWidth={1.5} />
                 </Link>
               </div>
@@ -100,7 +102,7 @@ export default function RootLayout({
                   <ul className="space-y-4 text-[#5A665A] font-light">
                      <li><Link href="/" className="hover:text-[#D4A373] transition-colors">Beranda</Link></li>
                      <li><Link href="/shop" className="hover:text-[#D4A373] transition-colors">Belanja</Link></li>
-                     <li><Link href="#affiliate" className="hover:text-[#D4A373] transition-colors">Affiliate</Link></li>
+                     <li><Link href="/#affiliate" className="hover:text-[#D4A373] transition-colors">Affiliate</Link></li>
                   </ul>
                </div>
 
