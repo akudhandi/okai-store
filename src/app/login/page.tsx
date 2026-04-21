@@ -2,17 +2,79 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; 
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Mail, Lock, User, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Mail, Lock, User, Eye, EyeOff, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
+import axiosInstance from "../../lib/axios"; 
 
 export default function LoginPage() {
+  const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // State untuk form input
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  
+  // State untuk loading dan error
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Logic POST ke Backend Laravel (Sanctum/JWT) untuk Authentikasi
-    alert(isLogin ? "Proses Login berjalan..." : "Proses Pendaftaran berjalan...");
+    setIsLoading(true);
+    setErrorMsg("");
+
+    try {
+      let response;
+      
+      if (isLogin) {
+        // --- HIT API LOGIN ---
+        response = await axiosInstance.post("/login", {
+          email,
+          password
+        });
+      } else {
+        // --- HIT API REGISTER ---
+        response = await axiosInstance.post("/register", {
+          name,
+          email,
+          password,
+          password_confirmation: password // Diperlukan oleh Laravel
+        });
+      }
+
+      console.log("Bentuk Response dari Laravel:", response.data);
+
+      // Tangkap Token (Menyesuaikan dengan format JSON Laravel-mu)
+      const token = response.data.token || response.data.data?.token; 
+      
+      if (token) {
+        // Simpan token di localStorage
+        localStorage.setItem("kambi_token", token);
+        
+        // Simpan data user
+        const userData = response.data.user || response.data.data?.user;
+        if(userData) localStorage.setItem("kambi_user", JSON.stringify(userData));
+
+        // 👇 TAMBAHKAN BARIS INI: Kirim sinyal ke Navbar!
+        window.dispatchEvent(new Event("userLogin"));
+
+        // Alert sukses dari kodingan baru
+        alert(isLogin ? "Login Berhasil!" : "Pendaftaran Berhasil!");
+        
+        // Pindah ke Beranda
+        router.push("/"); 
+      }
+
+    } catch (err: any) {
+      console.error("Auth Error:", err);
+      const message = err.response?.data?.message || err.response?.data?.errors?.email?.[0] || "Terjadi kesalahan pada server.";
+      setErrorMsg(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -24,7 +86,7 @@ export default function LoginPage() {
 
       <div className="w-full max-w-5xl bg-white rounded-[3rem] shadow-2xl border border-[#EAE6D9] overflow-hidden flex flex-col md:flex-row relative z-10 min-h-[600px]">
         
-        {/* KOLOM KIRI: Branding (Sembunyi di Mobile) */}
+        {/* KOLOM KIRI: Branding */}
         <div className="hidden md:flex md:w-1/2 bg-[#3A5034] p-12 flex-col justify-between relative overflow-hidden text-white">
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
           
@@ -44,7 +106,7 @@ export default function LoginPage() {
             <ShieldCheck size={32} className="text-[#D4A373]"/>
             <div>
               <p className="font-bold font-playfair text-lg">Keamanan Terjamin</p>
-              <p className="text-xs text-[#EAE6D9] font-light">Data privasi Anda dilindungi enkripsi standar industri.</p>
+              <p className="text-xs text-[#EAE6D9] font-light">Data Anda dilindungi enkripsi standar industri.</p>
             </div>
           </div>
         </div>
@@ -52,7 +114,6 @@ export default function LoginPage() {
         {/* KOLOM KANAN: Form Area */}
         <div className="w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-center bg-white relative">
           
-          {/* Tombol Back untuk Mobile */}
           <Link href="/" className="md:hidden inline-flex items-center gap-2 text-[#5A665A] hover:text-[#D4A373] transition-colors mb-8 text-sm font-medium">
             <ArrowLeft size={16} /> Kembali
           </Link>
@@ -74,6 +135,14 @@ export default function LoginPage() {
                 </p>
               </div>
 
+              {/* TAMPILAN ERROR */}
+              {errorMsg && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-600">
+                  <AlertCircle size={20} className="shrink-0 mt-0.5" />
+                  <p className="text-sm font-medium">{errorMsg}</p>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-5">
                 
                 {/* Input Nama (Hanya muncul saat Register) */}
@@ -82,7 +151,7 @@ export default function LoginPage() {
                     <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Lengkap</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A]"><User size={18}/></span>
-                      <input required type="text" placeholder="Budi Santoso" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3.5 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
+                      <input required type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Budi Santoso" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3.5 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
                     </div>
                   </motion.div>
                 )}
@@ -91,7 +160,7 @@ export default function LoginPage() {
                   <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Email</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A]"><Mail size={18}/></span>
-                    <input required type="email" placeholder="email@anda.com" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3.5 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
+                    <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@anda.com" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3.5 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
                   </div>
                 </div>
 
@@ -102,7 +171,7 @@ export default function LoginPage() {
                   </div>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A]"><Lock size={18}/></span>
-                    <input required type={showPassword ? "text" : "password"} placeholder="••••••••" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-12 py-3.5 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
+                    <input required minLength={6} type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-12 py-3.5 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5A665A] hover:text-[#2C352D] transition-colors">
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -110,8 +179,8 @@ export default function LoginPage() {
                 </div>
 
                 <div className="pt-4">
-                  <button type="submit" className="w-full flex items-center justify-center gap-2 bg-[#3A5034] text-white py-4 rounded-xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300">
-                    {isLogin ? "Masuk" : "Daftar Akun"}
+                  <button disabled={isLoading} type="submit" className="w-full flex items-center justify-center gap-2 bg-[#3A5034] disabled:bg-[#5A665A] text-white py-4 rounded-xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300">
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : (isLogin ? "Masuk" : "Daftar Akun")}
                   </button>
                 </div>
               </form>
@@ -119,7 +188,7 @@ export default function LoginPage() {
               <div className="mt-8 text-center">
                 <p className="text-sm text-[#5A665A] font-light">
                   {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
-                  <button onClick={() => setIsLogin(!isLogin)} className="text-[#D4A373] font-bold hover:underline transition-all">
+                  <button onClick={() => { setIsLogin(!isLogin); setErrorMsg(""); }} className="text-[#D4A373] font-bold hover:underline transition-all">
                     {isLogin ? "Daftar sekarang" : "Masuk di sini"}
                   </button>
                 </p>

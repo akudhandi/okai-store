@@ -1,174 +1,216 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion, Variants } from "framer-motion";
-import { ArrowLeft, MapPin, User, Phone, Truck, CreditCard, ShieldCheck, Tag } from "lucide-react";
-
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
-};
+import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
+import { getCart, CartItem } from "../../lib/cart";
+import axiosInstance from "../../lib/axios";
 
 export default function CheckoutPage() {
-  // State untuk menyimpan kode Affiliate dari Local Storage
-  const [affiliateRef, setAffiliateRef] = useState<string | null>(null);
+  const router = useRouter();
+  
+  // State Data
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  
+  // State Form
+  const [address, setAddress] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("transfer_bank");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  // Saat halaman dimuat, diam-diam cek apakah ada "jejak" Affiliate
-  useEffect(() => {
-    const ref = localStorage.getItem("okai_affiliate_ref");
-    if (ref) {
-      setAffiliateRef(ref);
-    }
-  }, []);
-
-  // --- MOCK DATA (Anggap aja ini data dari keranjang sebelumnya) ---
-  const subtotal = 140000;
-  const ongkir = 15000;
+  // Kalkulasi Harga
+  const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
+  const ongkir = 25000; // Contoh ongkir flat
   const total = subtotal + ongkir;
 
-  const formatIDR = (val: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+  useEffect(() => {
+    // 1. Cek Login
+    const token = localStorage.getItem("kambi_token");
+    const userStr = localStorage.getItem("kambi_user");
+    
+    if (!token) {
+      alert("Silakan login terlebih dahulu untuk melakukan pembayaran.");
+      router.push("/login");
+      return;
+    }
+    
+    if (userStr) setUser(JSON.parse(userStr));
 
-  const handleCheckout = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Nanti di sini kita POST data ke Backend Laravel
-    alert(`Checkout Berhasil!\nTotal: ${formatIDR(total)}\nAffiliate: ${affiliateRef || "Tidak ada"}`);
+    // 2. Tarik Data Keranjang
+    const items = getCart();
+    if (items.length === 0) {
+      router.push("/cart"); // Kalau kosong, balikin ke keranjang
+      return;
+    }
+    
+    setCartItems(items);
+    setIsLoaded(true);
+  }, [router]);
+
+  const formatIDR = (val: number) => {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
   };
 
-  return (
-    <div className="min-h-screen bg-[#FDFCF8] pt-8 pb-24 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
+
+    try {
+      const response = await axiosInstance.post("/orders", {
+        address: address,
+        payment_method: paymentMethod,
+        total_price: total, // Sesuai kolom DB
+        items: cartItems,    // Array berisi id, qty, price
+      });
+
+      if (response.data.success) {
+        localStorage.removeItem("kambi_cart");
+        window.dispatchEvent(new Event("cartUpdated"));
+        setIsProcessing(false);
+        setIsSuccess(true);
         
-        {/* Navigasi Kembali */}
-        <Link href="/cart" className="inline-flex items-center gap-2 text-[#5A665A] hover:text-[#D4A373] transition-colors mb-8 text-sm font-medium">
+        setTimeout(() => {
+          router.push("/");
+        }, 3000);
+      }
+    } catch (err) {
+      console.error("Checkout Error:", err);
+      alert("Gagal memproses pesanan. Silakan coba lagi.");
+      setIsProcessing(false);
+    }
+  };
+
+  // Jangan render sebelum data siap
+  if (!isLoaded) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#D4A373]" size={40}/></div>;
+
+  // LAYAR SUKSES
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen bg-[#FDFCF8] flex items-center justify-center p-4">
+        <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-[#EAE6D9] text-center max-w-md w-full">
+          <div className="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 size={48} />
+          </div>
+          <h2 className="text-3xl font-bold font-playfair text-[#2C352D] mb-4">Pesanan Berhasil!</h2>
+          <p className="text-[#5A665A] mb-8 leading-relaxed">
+            Terima kasih, <strong>{user?.name}</strong>. Pesanan Anda sedang kami proses. Invoice telah dikirim ke email Anda.
+          </p>
+          <div className="flex items-center justify-center gap-2 text-sm text-[#D4A373] animate-pulse">
+            Mengalihkan ke beranda...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#FDFCF8] pt-10 pb-24 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
+        
+        <Link href="/cart" className="inline-flex items-center gap-2 text-[#5A665A] hover:text-[#D4A373] transition-colors mb-8 font-medium text-sm">
           <ArrowLeft size={16} /> Kembali ke Keranjang
         </Link>
 
-        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
-          <h1 className="text-4xl md:text-5xl font-semibold text-[#2C352D] font-playfair tracking-tight mb-2">Checkout</h1>
-          <p className="text-[#5A665A] text-lg font-light">Lengkapi detail pengiriman Anda untuk menyelesaikan pesanan.</p>
-        </motion.div>
+        <h1 className="text-4xl font-semibold text-[#2C352D] font-playfair mb-10">Penyelesaian Pesanan</h1>
 
         <form onSubmit={handleCheckout} className="flex flex-col lg:flex-row gap-10">
           
-          {/* KOLOM KIRI: Form Pengiriman */}
-          <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex-1 space-y-8">
+          {/* KOLOM KIRI: Form Data Pengiriman & Pembayaran */}
+          <div className="flex-1 space-y-8">
             
-            {/* Box 1: Informasi Kontak */}
+            {/* Box Alamat */}
             <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
-              <h2 className="text-xl font-semibold text-[#2C352D] font-playfair mb-6 flex items-center gap-2">
-                <User className="text-[#D4A373]" size={20}/> Informasi Kontak
+              <h2 className="text-xl font-bold font-playfair text-[#2C352D] mb-6 flex items-center gap-2">
+                <MapPin className="text-[#D4A373]"/> Alamat Pengiriman
               </h2>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#5A665A]">Nama Lengkap</label>
-                  <input required type="text" placeholder="Budi Santoso" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Penerima</label>
+                  <input type="text" value={user?.name || ""} disabled className="w-full bg-[#F3EFE4] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#5A665A] cursor-not-allowed mt-1" />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#5A665A]">Nomor WhatsApp</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A] font-medium">+62</span>
-                    <input required type="tel" placeholder="81234567890" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
-                  </div>
+                <div>
+                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Alamat Lengkap</label>
+                  <textarea required rows={3} placeholder="Nama Jalan, Gedung, No. Rumah, RT/RW, Kecamatan, Kota..." value={address} onChange={(e) => setAddress(e.target.value)} className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1 resize-none" />
                 </div>
               </div>
             </div>
 
-            {/* Box 2: Alamat Pengiriman */}
+            {/* Box Metode Pembayaran */}
             <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
-              <h2 className="text-xl font-semibold text-[#2C352D] font-playfair mb-6 flex items-center gap-2">
-                <MapPin className="text-[#D4A373]" size={20}/> Alamat Pengiriman
+              <h2 className="text-xl font-bold font-playfair text-[#2C352D] mb-6 flex items-center gap-2">
+                <Wallet className="text-[#D4A373]"/> Metode Pembayaran
               </h2>
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#5A665A]">Alamat Lengkap (Jalan, No Rumah, RT/RW)</label>
-                  <textarea required rows={3} placeholder="Jl. Sudirman No. 123, RT 01/RW 02..." className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all resize-none"></textarea>
-                </div>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-[#5A665A]">Kota / Kabupaten</label>
-                    <input required type="text" placeholder="Kota Surabaya" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-[#5A665A]">Kode Pos</label>
-                    <input required type="text" placeholder="60123" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
-                  </div>
-                </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Option 1 */}
+                <label className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-all ${paymentMethod === 'transfer_bank' ? 'border-[#3A5034] bg-[#3A5034]/5' : 'border-[#EAE6D9] hover:border-[#D4A373]/50'}`}>
+                  <input type="radio" name="payment" value="transfer_bank" checked={paymentMethod === 'transfer_bank'} onChange={() => setPaymentMethod('transfer_bank')} className="hidden" />
+                  <CreditCard size={28} className={paymentMethod === 'transfer_bank' ? 'text-[#3A5034]' : 'text-[#5A665A]'}/>
+                  <span className={`font-semibold text-sm ${paymentMethod === 'transfer_bank' ? 'text-[#3A5034]' : 'text-[#5A665A]'}`}>Transfer Bank</span>
+                </label>
+
+                {/* Option 2 */}
+                <label className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-all ${paymentMethod === 'cod' ? 'border-[#3A5034] bg-[#3A5034]/5' : 'border-[#EAE6D9] hover:border-[#D4A373]/50'}`}>
+                  <input type="radio" name="payment" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="hidden" />
+                  <Truck size={28} className={paymentMethod === 'cod' ? 'text-[#3A5034]' : 'text-[#5A665A]'}/>
+                  <span className={`font-semibold text-sm ${paymentMethod === 'cod' ? 'text-[#3A5034]' : 'text-[#5A665A]'}`}>Bayar di Tempat (COD)</span>
+                </label>
               </div>
             </div>
 
-            {/* Box 3: Metode Pengiriman & Pembayaran */}
-            <div className="grid md:grid-cols-2 gap-6">
-               <div className="bg-white p-6 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
-                  <h2 className="text-lg font-semibold text-[#2C352D] font-playfair mb-4 flex items-center gap-2">
-                    <Truck className="text-[#D4A373]" size={18}/> Ekspedisi
-                  </h2>
-                  <select className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all cursor-pointer">
-                     <option>JNE Reguler (Rp 15.000)</option>
-                     <option>J&T Express (Rp 16.000)</option>
-                     <option>SiCepat REG (Rp 15.000)</option>
-                  </select>
-               </div>
-               <div className="bg-white p-6 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
-                  <h2 className="text-lg font-semibold text-[#2C352D] font-playfair mb-4 flex items-center gap-2">
-                    <CreditCard className="text-[#D4A373]" size={18}/> Pembayaran
-                  </h2>
-                  <select className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all cursor-pointer">
-                     <option>Bank Transfer (BCA)</option>
-                     <option>Bank Transfer (Mandiri)</option>
-                     <option>E-Wallet (GoPay / OVO)</option>
-                  </select>
-               </div>
-            </div>
+          </div>
 
-          </motion.div>
+          {/* KOLOM KANAN: Ringkasan & Tombol Bayar */}
+          <div className="w-full lg:w-[400px]">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-[#EAE6D9] shadow-sm sticky top-28">
+              <h3 className="text-xl font-bold text-[#2C352D] font-playfair mb-6 border-b border-[#EAE6D9] pb-4">Ringkasan Pesanan</h3>
+              
+              {/* List Item Kecil */}
+              <div className="space-y-4 mb-6 max-h-48 overflow-y-auto pr-2">
+                {cartItems.map(item => (
+                  <div key={item.id} className="flex justify-between items-start gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-[#2C352D] line-clamp-1">{item.name}</p>
+                      <p className="text-xs text-[#5A665A]">{item.qty} x {formatIDR(item.price)}</p>
+                    </div>
+                    <p className="text-sm font-bold text-[#3A5034]">{formatIDR(item.price * item.qty)}</p>
+                  </div>
+                ))}
+              </div>
 
-          {/* KOLOM KANAN: Ringkasan Final */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="w-full lg:w-[400px]">
-            <div className="bg-[#3A5034] p-8 rounded-[2.5rem] shadow-xl sticky top-28 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-5"><ShieldCheck size={150} /></div>
-              
-              <h3 className="text-2xl font-semibold font-playfair mb-8 relative z-10">Ringkasan Pembayaran</h3>
-              
-              <div className="space-y-4 mb-6 text-[#EAE6D9] font-light border-b border-white/20 pb-6 relative z-10">
+              {/* Rincian Harga */}
+              <div className="space-y-3 mb-6 text-[#5A665A] font-light text-sm border-t border-[#EAE6D9] pt-4">
                 <div className="flex justify-between">
-                  <span>Subtotal (3 Item)</span>
-                  <span className="font-medium text-white">{formatIDR(subtotal)}</span>
+                  <span>Subtotal Produk</span>
+                  <span className="font-medium text-[#2C352D]">{formatIDR(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Ongkos Kirim</span>
-                  <span className="font-medium text-white">{formatIDR(ongkir)}</span>
+                  <span>Ongkos Kirim (Flat)</span>
+                  <span className="font-medium text-[#2C352D]">{formatIDR(ongkir)}</span>
                 </div>
               </div>
 
-              {/* INDIKATOR AFFILIATE (Muncul kalau ada kode ref) */}
-              {affiliateRef && (
-                <div className="mb-6 px-4 py-3 bg-[#D4A373]/20 rounded-xl border border-[#D4A373]/30 flex items-center gap-3 relative z-10">
-                   <Tag size={18} className="text-[#D4A373]" />
-                   <div className="text-sm">
-                      <p className="text-[#EAE6D9] font-light text-xs">Diundang oleh mitra:</p>
-                      <p className="font-bold text-[#D4A373] uppercase tracking-wider">{affiliateRef}</p>
-                   </div>
-                </div>
-              )}
-              
-              <div className="mb-8 flex justify-between items-end relative z-10">
-                <span className="text-lg font-medium text-[#EAE6D9]">Total Bayar</span>
-                <span className="text-3xl font-bold text-[#D4A373] tracking-tight">{formatIDR(total)}</span>
+              {/* Total Akhir */}
+              <div className="border-t border-[#EAE6D9] pt-6 mb-8 flex flex-col">
+                <span className="text-xs font-bold text-[#5A665A] uppercase tracking-widest mb-1">Total Pembayaran</span>
+                <span className="text-3xl font-bold text-[#3A5034] tracking-tight">{formatIDR(total)}</span>
               </div>
 
-              <button type="submit" className="w-full flex items-center justify-center bg-[#D4A373] text-white py-4 rounded-2xl font-bold tracking-wide shadow-lg hover:bg-[#C08A45] hover:scale-[1.02] transition-all duration-300 relative z-10">
-                Selesaikan Pembayaran
+              <button disabled={isProcessing} type="submit" className="w-full flex items-center justify-center gap-2 bg-[#3A5034] disabled:bg-[#5A665A] text-white py-4 rounded-2xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300">
+                {isProcessing ? <Loader2 size={20} className="animate-spin" /> : "Bayar Sekarang"}
               </button>
 
-              <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[#EAE6D9]/70 font-light relative z-10">
-                Data Anda dilindungi enkripsi SSL 256-bit
+              <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[#5A665A] font-light">
+                <ShieldCheck size={16} className="text-[#D4A373]" /> Transaksi Aman & Terenkripsi
               </div>
             </div>
-          </motion.div>
-          
-        </form>
+          </div>
 
+        </form>
       </div>
     </div>
   );

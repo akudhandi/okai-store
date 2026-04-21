@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Star, Minus, Plus, ShoppingCart, ShieldCheck, ArrowLeft, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import axiosInstance from "../../../lib/axios";
+import { addToCart } from "../../../lib/cart"; // Import fungsi keranjang
 
 interface Product {
   id: number;
@@ -59,7 +60,19 @@ export default function ProductDetail() {
       alert(`Maaf, stok hanya tersisa ${product.stock} pcs!`);
       return;
     }
-    alert(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang!`);
+
+    // Eksekusi fungsi simpan ke memori
+    addToCart({
+      id: product.id,
+      slug: params?.slug as string,
+      name: product.name,
+      price: Number(product.price),
+      qty: qty,
+      image_url: product.image_url,
+      category: product.category || "Produk",
+    });
+
+    alert(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
   };
 
   // --- STATE LOADING ---

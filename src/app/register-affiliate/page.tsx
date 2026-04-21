@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect} from "react";
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
 import { ArrowLeft, CheckCircle2, Megaphone, Wallet, Link as LinkIcon, AtSign, Send, Phone, Lock } from "lucide-react";
@@ -17,11 +17,26 @@ const staggerContainer: Variants = {
 
 export default function RegisterAffiliate() {
   const [isSubmitted, setIsSubmitted] = useState(false);
-  
-  // SIMULASI LOGIN: 
-  // Nanti diubah jadi mengecek session/token dari Laravel. 
-  // Saat ini kita set 'false' agar fitur "Gembok" nya terlihat.
   const [isLoggedIn, setIsLoggedIn] = useState(false); 
+
+  // 👇 TAMBAHKAN STATE EMAIL
+  const [userEmail, setUserEmail] = useState("Memuat email...");
+
+  // 👇 TAMBAHKAN KODINGAN PENGECEK TOKEN & USER
+  useEffect(() => {
+    const token = localStorage.getItem("kambi_token");
+    const userStr = localStorage.getItem("kambi_user");
+    
+    if (token && userStr) {
+      setIsLoggedIn(true);
+      try {
+        const userObj = JSON.parse(userStr);
+        setUserEmail(userObj.email); // Isi email otomatis dari database!
+      } catch (e) {
+        console.error("Gagal membaca data user");
+      }
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,7 +151,7 @@ export default function RegisterAffiliate() {
                   {/* Data Akun Otomatis */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest">Email Akun (Terkunci)</label>
-                    <input type="email" value="customer@email.com" disabled className="w-full bg-[#F3EFE4] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#5A665A] opacity-80 cursor-not-allowed font-medium" />
+                    <input type="email" value={userEmail} disabled className="w-full bg-[#F3EFE4] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#5A665A] opacity-80 cursor-not-allowed font-medium" />
                   </div>
 
                   {/* Nomor WhatsApp */}
