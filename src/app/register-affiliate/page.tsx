@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect} from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
-import { ArrowLeft, CheckCircle2, Megaphone, Wallet, Link as LinkIcon, AtSign, Send, Phone, Lock } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Megaphone, Wallet, Link as LinkIcon, AtSign, Send, Phone, Lock, Loader2 } from "lucide-react";
+// Pastikan path ini sesuai dengan export axios kamu di folder lib
+import axios from "@/lib/axios"; 
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -18,11 +20,17 @@ const staggerContainer: Variants = {
 export default function RegisterAffiliate() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false); 
+  const [isSending, setIsSending] = useState(false); // State untuk loading submit
 
-  // 👇 TAMBAHKAN STATE EMAIL
   const [userEmail, setUserEmail] = useState("Memuat email...");
+  const [userId, setUserId] = useState<number | null>(null);
 
-  // 👇 TAMBAHKAN KODINGAN PENGECEK TOKEN & USER
+  // 👇 STATE UNTUK FORM INPUT
+  const [whatsapp, setWhatsapp] = useState("");
+  const [socialPlatform, setSocialPlatform] = useState("tiktok");
+  const [socialUsername, setSocialUsername] = useState("");
+  const [promotionalPlan, setPromotionalPlan] = useState("");
+
   useEffect(() => {
     const token = localStorage.getItem("kambi_token");
     const userStr = localStorage.getItem("kambi_user");
@@ -31,19 +39,45 @@ export default function RegisterAffiliate() {
       setIsLoggedIn(true);
       try {
         const userObj = JSON.parse(userStr);
-        setUserEmail(userObj.email); // Isi email otomatis dari database!
+        setUserEmail(userObj.email); 
+        setUserId(userObj.id); // Simpan ID user untuk dikirim ke backend
       } catch (e) {
         console.error("Gagal membaca data user");
       }
     }
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Logic POST ke Backend:
-    // 1. Data dikirim ke tabel 'affiliate_requests' (Status: Pending)
-    // 2. Admin/Super Admin akan review. Kalau di-Approve, role user berubah jadi 'affiliate'.
-    setIsSubmitted(true);
+    setIsSending(true);
+
+    try {
+      const token = localStorage.getItem("kambi_token");
+      
+      // Sesuaikan URL endpoint ini dengan route API Laravel kamu
+      const response = await axios.post("/affiliate-requests", {
+        user_id: userId,
+        whatsapp_number: whatsapp,
+        social_platform: socialPlatform,
+        social_username: socialUsername,
+        promotional_plan: promotionalPlan
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.data.success || response.status === 200 || response.status === 201) {
+        setIsSubmitted(true);
+      } else {
+        alert("Gagal mengirim pengajuan: " + (response.data.message || "Terjadi kesalahan"));
+      }
+    } catch (error: any) {
+      console.error("Error submitting affiliate request:", error);
+      alert(error.response?.data?.message || "Gagal menghubungi server. Pastikan koneksi internet stabil.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   if (isSubmitted) {
@@ -77,7 +111,7 @@ export default function RegisterAffiliate() {
 
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           
-          {/* KOLOM KIRI: Edukasi & Benefit (Tetap Terlihat agar user tertarik) */}
+          {/* KOLOM KIRI: Edukasi & Benefit */}
           <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="space-y-8">
             <motion.div variants={fadeUp}>
               <span className="px-4 py-2 bg-[#D4A373]/20 text-[#D4A373] rounded-full text-xs font-bold uppercase tracking-widest mb-6 inline-block border border-[#D4A373]/30">
@@ -133,7 +167,7 @@ export default function RegisterAffiliate() {
                   Masuk / Daftar Akun
                 </Link>
                 
-                {/* Tombol Testing Khusus Dev (Biar kamu bisa liat formnya tanpa harus coding API dulu) */}
+                {/* Tombol Testing Khusus Dev */}
                 <button onClick={() => setIsLoggedIn(true)} className="mt-8 text-[11px] text-[#D4A373] underline font-medium hover:text-[#C08A45]">
                   [Dev Test] Simulasi: Anggap Sudah Login
                 </button>
@@ -159,7 +193,14 @@ export default function RegisterAffiliate() {
                     <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest">Nomor WhatsApp Aktif</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A]"><Phone size={18}/></span>
-                      <input required type="tel" placeholder="0812xxxx..." className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
+                      <input 
+                        required 
+                        type="tel" 
+                        value={whatsapp}
+                        onChange={(e) => setWhatsapp(e.target.value)}
+                        placeholder="0812xxxx..." 
+                        className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" 
+                      />
                     </div>
                   </div>
 
@@ -167,7 +208,12 @@ export default function RegisterAffiliate() {
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest">Sosial Media Utama</label>
                     <div className="flex gap-3">
-                      <select required className="bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all w-[120px] cursor-pointer">
+                      <select 
+                        required 
+                        value={socialPlatform}
+                        onChange={(e) => setSocialPlatform(e.target.value)}
+                        className="bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all w-[120px] cursor-pointer"
+                      >
                         <option value="tiktok">TikTok</option>
                         <option value="instagram">Instagram</option>
                         <option value="facebook">Facebook</option>
@@ -175,7 +221,14 @@ export default function RegisterAffiliate() {
                       </select>
                       <div className="relative flex-1">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A]"><AtSign size={18}/></span>
-                        <input required type="text" placeholder="Username / Link Profil" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" />
+                        <input 
+                          required 
+                          type="text" 
+                          value={socialUsername}
+                          onChange={(e) => setSocialUsername(e.target.value)}
+                          placeholder="Username / Link Profil" 
+                          className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all" 
+                        />
                       </div>
                     </div>
                   </div>
@@ -183,15 +236,29 @@ export default function RegisterAffiliate() {
                   {/* Strategi */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest">Rencana Promosi</label>
-                    <textarea required rows={4} placeholder="Ceritakan bagaimana cara Anda menawarkan KAMBI (Contoh: Live TikTok rutin, share ke grup WA Ibu-ibu, dll)..." className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all resize-none"></textarea>
+                    <textarea 
+                      required 
+                      rows={4} 
+                      value={promotionalPlan}
+                      onChange={(e) => setPromotionalPlan(e.target.value)}
+                      placeholder="Ceritakan bagaimana cara Anda menawarkan KAMBI (Contoh: Live TikTok rutin, share ke grup WA Ibu-ibu, dll)..." 
+                      className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-[#2C352D] focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] transition-all resize-none"
+                    ></textarea>
                   </div>
 
                   <div className="pt-4 flex items-center justify-between">
-                    {/* Tombol Testing Khusus Dev buat balik ke mode Gembok */}
                     <button type="button" onClick={() => setIsLoggedIn(false)} className="text-[11px] text-[#D4A373] underline">Batal (Logout)</button>
                     
-                    <button type="submit" className="flex items-center justify-center gap-2 bg-[#3A5034] text-white px-8 py-4 rounded-xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300">
-                      Ajukan <Send size={18} />
+                    <button 
+                      type="submit" 
+                      disabled={isSending}
+                      className="flex items-center justify-center gap-2 bg-[#3A5034] text-white px-8 py-4 rounded-xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300 disabled:opacity-70 disabled:hover:translate-y-0"
+                    >
+                      {isSending ? (
+                        <>Memproses <Loader2 className="animate-spin" size={18} /></>
+                      ) : (
+                        <>Ajukan <Send size={18} /></>
+                      )}
                     </button>
                   </div>
 

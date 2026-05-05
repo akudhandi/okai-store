@@ -2,17 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Star, Filter, Loader2, AlertCircle } from "lucide-react";
+import { Star, Filter, Loader2, AlertCircle, Search } from "lucide-react";
 import { motion, Variants } from "framer-motion";
-import axiosInstance from "../../lib/axios"; // Import Axios kita
+import axiosInstance from "../../lib/axios";
 
 // --- TIPE DATA TYPESCRIPT ---
-// Sesuaikan dengan nama kolom di tabel 'products' Laravel kamu
 interface Product {
   id: number;
   name: string;
   price: number;
-  // Jika di backend belum ada gambar/kategori, kita pakai default/opsional dulu
   category?: string; 
   slug?: string;
   image_url?: string;
@@ -36,16 +34,13 @@ export default function Shop() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // --- MENGAMBIL DATA DARI LARAVEL ---
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        // Memanggil rute GET /api/products yang ada di routes/api.php
         const response = await axiosInstance.get("/products");
-        
-        // Biasanya Laravel mengembalikan data di dalam response.data atau response.data.data
-        // Sesuaikan jika format response di ProductController kamu berbeda
         const data = response.data.data || response.data; 
         setProducts(data);
         setIsLoading(false);
@@ -59,7 +54,6 @@ export default function Shop() {
     fetchProducts();
   }, []);
 
-// Fungsi format uang (Sekarang menerima angka murni dari Laravel)
   const formatIDR = (val: any) => {
     const num = Number(val) || 0;
     return new Intl.NumberFormat('id-ID', { 
@@ -68,10 +62,13 @@ export default function Shop() {
       minimumFractionDigits: 0 
     }).format(num);
   };
-  // Filter produk (Sifatnya sementara sampai backend punya filter kategori)
-  const filteredProducts = activeCategory === "Semua" 
-    ? products 
-    : products.filter(p => (p.category || "Bubuk Premium") === activeCategory);
+
+  // --- FILTER & PENCARIAN ---
+  const filteredProducts = products.filter((product) => {
+    const matchCategory = activeCategory === "Semua" || product.category === activeCategory;
+    const matchSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchCategory && matchSearch;
+  });
 
   return (
     <div className="min-h-screen bg-[#FDFCF8] pt-12 pb-24 px-4 sm:px-6 lg:px-8">
@@ -85,24 +82,44 @@ export default function Shop() {
           </p>
         </motion.div>
 
-        {/* FILTER BAR */}
-        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6 border-b border-[#EAE6D9] pb-6">
-          <div className="flex items-center gap-2 text-[#5A665A]">
-            <Filter size={20} />
-            <span className="font-semibold">Kategori:</span>
+        {/* SEARCH & FILTER BAR */}
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-12 border-b border-[#EAE6D9] pb-8">
+          
+          {/* SEARCH BAR */}
+          <div className="mb-8 max-w-md mx-auto md:mx-0">
+            <div className="relative group">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A] group-focus-within:text-[#D4A373] transition-colors">
+                <Search size={20} />
+              </span>
+              <input
+                type="text"
+                placeholder="Cari produk di sini..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-white border border-[#EAE6D9] rounded-2xl py-3.5 pl-12 pr-4 text-[#2C352D] font-medium placeholder:text-[#5A665A]/50 placeholder:font-light focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] shadow-sm transition-all"
+              />
+            </div>
           </div>
-          <div className="flex flex-wrap justify-center gap-3">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-6 py-2.5 rounded-full text-sm font-semibold tracking-wide transition-all duration-300 ${
-                  activeCategory === cat ? "bg-[#3A5034] text-white shadow-md" : "bg-white text-[#5A665A] border border-[#EAE6D9] hover:border-[#D4A373] hover:text-[#D4A373]"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+
+          {/* KATEGORI */}
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-2 text-[#5A665A]">
+              <Filter size={20} />
+              <span className="font-semibold">Kategori:</span>
+            </div>
+            <div className="flex flex-wrap justify-center md:justify-end gap-3 hide-scrollbar">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-6 py-2.5 rounded-full text-sm font-semibold tracking-wide transition-all duration-300 ${
+                    activeCategory === cat ? "bg-[#3A5034] text-white shadow-md" : "bg-white text-[#5A665A] border border-[#EAE6D9] hover:border-[#D4A373] hover:text-[#D4A373]"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
         </motion.div>
 
@@ -123,9 +140,9 @@ export default function Shop() {
         )}
 
         {/* GRID PRODUK DARI DATABASE */}
-        {!isLoading && !error && (
+        {!isLoading && !error && filteredProducts.length > 0 && (
           <motion.div 
-            key={activeCategory} 
+            key={`${activeCategory}-${searchTerm}`} 
             initial="hidden" animate="visible" variants={staggerContainer} 
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
           >
@@ -134,7 +151,6 @@ export default function Shop() {
                 
                 {/* Gambar Area */}
                 <Link href={`/product/${product.slug || product.id}`} className="block w-full aspect-4/3 bg-[#FDFCF8] rounded-2xl mb-6 flex items-center justify-center overflow-hidden relative cursor-pointer">
-                  {/* Jika dari Laravel belum ada gambar, kita pakai inisial namanya */}
                   {product.image_url ? (
                     <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                   ) : (
@@ -171,10 +187,21 @@ export default function Shop() {
           </motion.div>
         )}
 
+        {/* KONDISI JIKA PRODUK TIDAK DITEMUKAN */}
         {!isLoading && !error && filteredProducts.length === 0 && (
-          <div className="text-center py-20">
-            <p className="text-[#5A665A] text-lg">Maaf, produk belum tersedia di database.</p>
-          </div>
+          <motion.div initial="hidden" animate="visible" variants={fadeUp} className="text-center py-20 bg-white rounded-3xl border border-[#EAE6D9]">
+            <Search size={48} className="mx-auto mb-4 text-[#D4A373] opacity-50" />
+            <h3 className="text-xl font-bold text-[#2C352D] mb-2">Produk tidak ditemukan</h3>
+            <p className="text-[#5A665A] text-sm">
+              Maaf, kami tidak dapat menemukan produk yang sesuai dengan pencarian atau kategori Anda.
+            </p>
+            <button 
+              onClick={() => { setSearchTerm(""); setActiveCategory("Semua"); }}
+              className="mt-6 px-6 py-2.5 bg-[#FDFCF8] text-[#3A5034] border border-[#EAE6D9] rounded-full text-sm font-semibold hover:border-[#D4A373] transition-colors"
+            >
+              Hapus Filter
+            </button>
+          </motion.div>
         )}
 
       </div>

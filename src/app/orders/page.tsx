@@ -158,9 +158,9 @@ export default function OrdersPage() {
                       <p className="text-xs text-[#5A665A] mb-1">Total Belanja</p>
                       <p className="text-lg font-bold text-[#3A5034]">{formatIDR(order.total)}</p>
                     </div>
-                    <button className="flex items-center justify-center gap-2 bg-[#FDFCF8] text-[#3A5034] border border-[#EAE6D9] hover:border-[#D4A373] px-6 py-2.5 rounded-xl font-bold text-sm transition-all hover:bg-white">
+                    <Link href={`/orders/${order.raw_id}`} className="flex items-center justify-center gap-2 bg-[#FDFCF8] text-[#3A5034] border border-[#EAE6D9] hover:border-[#D4A373] px-6 py-2.5 rounded-xl font-bold text-sm transition-all hover:bg-white">
                       Lihat Detail <ChevronRight size={16} />
-                    </button>
+                    </Link>
                   </div>
 
                 </div>
