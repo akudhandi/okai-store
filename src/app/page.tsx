@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowRight, Leaf, ShieldCheck, Heart, Star, TrendingUp, Link as LinkIcon, Wallet, Users } from "lucide-react";
 // IMPORT MESIN ANIMASI 🚀
 import { motion, Variants } from "framer-motion";
+import AffiliateMenu from "@/components/AffiliateMenu";
 
 function AffiliateTracker() {
   const searchParams = useSearchParams();

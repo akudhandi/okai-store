@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, Mail, Lock, ShieldCheck, Loader2, Save, LogOut } from "lucide-react";
 import axiosInstance from "../../lib/axios";
+import AffiliateMenu from "@/components/AffiliateMenu";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -106,8 +107,13 @@ export default function ProfilePage() {
             <h2 className="text-xl font-bold text-[#2C352D] font-playfair mb-1">{name}</h2>
             <p className="text-sm text-[#5A665A] mb-4">{email}</p>
             
-            <div className="px-4 py-1.5 bg-[#EAE6D9]/50 border border-[#EAE6D9] text-[#5A665A] text-xs font-bold uppercase tracking-widest rounded-full mb-8">
+            <div className="px-4 py-1.5 bg-[#EAE6D9]/50 border border-[#EAE6D9] text-[#5A665A] text-xs font-bold uppercase tracking-widest rounded-full mb-6">
               {role}
+            </div>
+
+            {/* Menu Affiliate (Hanya Muncul Jika Status Active) */}
+            <div className="w-full flex justify-center mb-6">
+              <AffiliateMenu />
             </div>
 
             <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100">
