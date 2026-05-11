@@ -58,16 +58,25 @@ export default function CheckoutPage() {
     e.preventDefault();
     setIsProcessing(true);
 
+    // 👇 1. Jemput kode afiliasi dari laci Local Storage
+    const affiliateCode = localStorage.getItem("kambi_affiliate_ref");
+
     try {
       const response = await axiosInstance.post("/orders", {
         address: address,
         payment_method: paymentMethod,
-        total_price: total, // Sesuai kolom DB
-        items: cartItems,    // Array berisi id, qty, price
+        total_price: total,
+        items: cartItems,
+        // 👇 2. Titipin kode tersebut ke dalam payload (Bisa bernilai KODE atau null)
+        affiliate_code: affiliateCode, 
       });
 
       if (response.data.success) {
         localStorage.removeItem("kambi_cart");
+        
+        // 👇 3. BERSIH-BERSIH: Kalau pesanan sukses, hapus kode dari memori biar gak kehitung dua kali di pesanan berikutnya
+        localStorage.removeItem("kambi_affiliate_ref");
+
         window.dispatchEvent(new Event("cartUpdated"));
         setIsProcessing(false);
         setIsSuccess(true);

@@ -4,33 +4,32 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { 
   Wallet, Package, ArrowRightLeft, Copy, CheckCircle2, 
-  TrendingUp, Link as LinkIcon, ChevronRight, Loader2 
+  TrendingUp, Link as LinkIcon, ChevronRight, Loader2, Plus, Trash2, Store
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
-import api from "@/lib/axios"; // Pastikan path ini sesuai dengan file axios kamu
+import api from "@/lib/axios";
 
 export default function AffiliateDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [affiliateData, setAffiliateData] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<number | string | null>(null);
-  const [withdrawAmount, setWithdrawAmount] = useState("");
+  
+  // STATE SEMENTARA UNTUK ETALASE (Nanti diganti pakai data API)
+  const [myShowcase, setMyShowcase] = useState<any[]>([]);
 
-  // 1. Ambil Data dari API
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Ambil status & kode affiliate user
         const statusRes = await api.get("/user/affiliate-status");
         if (statusRes.data.success) {
           setAffiliateData(statusRes.data.data);
         }
 
-        // Ambil katalog produk affiliate
         const productsRes = await api.get("/affiliate/available-products");
         if (productsRes.data.success) {
           setProducts(productsRes.data.data);
@@ -53,7 +52,6 @@ export default function AffiliateDashboard() {
     if (isCode) {
       textToCopy = affiliateData?.affiliate_code || "";
     } else {
-      // Logic Link: domain/product/ID?ref=KODE
       textToCopy = `${window.location.origin}/product/${id}?ref=${affiliateData?.affiliate_code}`;
     }
     
@@ -61,6 +59,24 @@ export default function AffiliateDashboard() {
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
+
+  // --- FUNGSI MOCKUP ETALASE (SEMENTARA) ---
+  const addToShowcase = (product: any) => {
+    if (!myShowcase.find((p) => p.id === product.id)) {
+      setMyShowcase([...myShowcase, product]);
+      // Nanti di sini dikasih fungsi API post ke backend
+    }
+  };
+
+  const removeFromShowcase = (productId: number) => {
+    setMyShowcase(myShowcase.filter((p) => p.id !== productId));
+    // Nanti di sini dikasih fungsi API delete ke backend
+  };
+
+  const isProductInShowcase = (productId: number) => {
+    return myShowcase.some((p) => p.id === productId);
+  };
+  // -----------------------------------------
 
   if (loading) {
     return (
@@ -87,7 +103,6 @@ export default function AffiliateDashboard() {
             <p className="text-[#5A665A] font-light">Halo, {affiliateData?.full_name || 'Mitra'}. Pantau performa Anda di sini.</p>
           </div>
 
-          {/* KODE REFERRAL ASLI DARI DB */}
           <div className="bg-white p-4 rounded-2xl border border-[#EAE6D9] shadow-sm flex items-center gap-4">
             <div>
               <p className="text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-1">Kode Referral Anda</p>
@@ -102,10 +117,11 @@ export default function AffiliateDashboard() {
           </div>
         </div>
 
-        {/* TAB NAVIGATION */}
+        {/* TAB NAVIGATION BARU */}
         <div className="flex overflow-x-auto hide-scrollbar gap-2 mb-8 bg-white p-2 rounded-2xl border border-[#EAE6D9] shadow-sm">
           <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")} icon={<TrendingUp size={18}/>} label="Ringkasan" />
-          <TabButton active={activeTab === "catalog"} onClick={() => setActiveTab("catalog")} icon={<Package size={18}/>} label="Katalog Produk" />
+          <TabButton active={activeTab === "marketplace"} onClick={() => setActiveTab("marketplace")} icon={<Package size={18}/>} label="Bursa Produk" />
+          <TabButton active={activeTab === "showcase"} onClick={() => setActiveTab("showcase")} icon={<Store size={18}/>} label="Etalase Saya" />
           <TabButton active={activeTab === "withdraw"} onClick={() => setActiveTab("withdraw")} icon={<ArrowRightLeft size={18}/>} label="Tarik Komisi" />
         </div>
 
@@ -141,43 +157,50 @@ export default function AffiliateDashboard() {
             </div>
           )}
 
-          {/* TAB: KATALOG PRODUK ASLI */}
-          {activeTab === "catalog" && (
+          {/* TAB: BURSA PRODUK (SEMUA PRODUK DARI ADMIN) */}
+          {activeTab === "marketplace" && (
             <div>
               <div className="flex justify-between items-end mb-6">
                 <h3 className="text-xl font-semibold text-[#2C352D] font-playfair">Produk Tersedia ({products.length})</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {products.length > 0 ? products.map((prod: any) => (
-                  <div key={prod.id} className="bg-white rounded-[2rem] border border-[#EAE6D9] shadow-sm overflow-hidden group">
-                    <div className="h-48 bg-[#F3EFE4] flex items-center justify-center relative">
-                      {prod.image_url ? (
-                        <img src={prod.image_url} alt={prod.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <Package size={48} className="text-[#D4A373]/50" />
-                      )}
-                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-[#D4A373] shadow-sm">
-                        Komisi {prod.affiliate_commission || 0}%
+                {products.length > 0 ? products.map((prod: any) => {
+                  const inShowcase = isProductInShowcase(prod.id);
+                  return (
+                    <div key={prod.id} className="bg-white rounded-[2rem] border border-[#EAE6D9] shadow-sm overflow-hidden group flex flex-col">
+                      <div className="h-48 bg-[#F3EFE4] flex items-center justify-center relative shrink-0">
+                        {prod.image_url ? (
+                          <img src={prod.image_url} alt={prod.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Package size={48} className="text-[#D4A373]/50" />
+                        )}
+                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-[#D4A373] shadow-sm">
+                          Komisi {prod.affiliate_commission || 15}%
+                        </div>
+                      </div>
+                      <div className="p-6 flex flex-col flex-1">
+                        <h4 className="font-bold text-[#2C352D] mb-2 line-clamp-2">{prod.name}</h4>
+                        <p className="text-[#5A665A] font-medium mb-6 flex-1">{formatIDR(prod.price)}</p>
+                        
+                        <button 
+                          onClick={() => addToShowcase(prod)}
+                          disabled={inShowcase}
+                          className={`w-full py-3 px-4 border rounded-xl flex items-center justify-center gap-2 transition-all text-sm font-bold ${
+                            inShowcase 
+                            ? "bg-[#F3EFE4] border-[#EAE6D9] text-[#5A665A] cursor-not-allowed" 
+                            : "bg-[#3A5034] border-[#3A5034] text-white hover:bg-[#2C352D] hover:shadow-lg"
+                          }`}
+                        >
+                          {inShowcase ? (
+                            <><CheckCircle2 size={18}/> Tersimpan di Etalase</>
+                          ) : (
+                            <><Plus size={18}/> Tambahkan ke Etalase</>
+                          )}
+                        </button>
                       </div>
                     </div>
-                    <div className="p-6">
-                      <h4 className="font-bold text-[#2C352D] mb-2 line-clamp-1">{prod.name}</h4>
-                      <p className="text-[#5A665A] font-medium mb-6">{formatIDR(prod.price)}</p>
-                      
-                      <button 
-                        onClick={() => handleCopyLink(prod.id)}
-                        className="w-full py-3 px-4 bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl flex items-center justify-between group-hover:border-[#D4A373] group-hover:text-[#D4A373] transition-all text-sm font-bold text-[#5A665A]"
-                      >
-                        {copiedId === prod.id ? (
-                          <span className="flex items-center gap-2 text-green-600"><CheckCircle2 size={18}/> Tersalin!</span>
-                        ) : (
-                          <span className="flex items-center gap-2"><LinkIcon size={18}/> Salin Link Affiliate</span>
-                        )}
-                        <ChevronRight size={18} />
-                      </button>
-                    </div>
-                  </div>
-                )) : (
+                  );
+                }) : (
                   <div className="col-span-full py-20 text-center bg-white rounded-[2rem] border border-dashed border-[#EAE6D9]">
                     <Package size={48} className="mx-auto text-[#EAE6D9] mb-4" />
                     <p className="text-[#5A665A]">Belum ada produk yang diaktifkan untuk afiliasi.</p>
@@ -187,7 +210,62 @@ export default function AffiliateDashboard() {
             </div>
           )}
 
-          {/* TAB: WITHDRAW (Sama seperti sebelumnya) */}
+          {/* TAB: ETALASE SAYA (HANYA PRODUK YANG DIPILIH) */}
+          {activeTab === "showcase" && (
+            <div>
+              <div className="flex justify-between items-end mb-6">
+                <h3 className="text-xl font-semibold text-[#2C352D] font-playfair">Etalase Saya ({myShowcase.length})</h3>
+                <p className="text-sm text-[#5A665A]">Pilih produk dari Bursa untuk ditambahkan ke sini.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {myShowcase.length > 0 ? myShowcase.map((prod: any) => (
+                  <div key={prod.id} className="bg-white rounded-[2rem] border border-[#EAE6D9] shadow-sm overflow-hidden group flex flex-col">
+                    <div className="h-48 bg-[#F3EFE4] flex items-center justify-center relative shrink-0">
+                      {prod.image_url ? (
+                        <img src={prod.image_url} alt={prod.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package size={48} className="text-[#D4A373]/50" />
+                      )}
+                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-[#D4A373] shadow-sm">
+                        Komisi {prod.affiliate_commission || 15}%
+                      </div>
+                    </div>
+                    <div className="p-6 flex flex-col flex-1">
+                      <h4 className="font-bold text-[#2C352D] mb-2 line-clamp-2">{prod.name}</h4>
+                      <p className="text-[#5A665A] font-medium mb-6 flex-1">{formatIDR(prod.price)}</p>
+                      
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleCopyLink(prod.id)}
+                          className="flex-1 py-3 px-4 bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl flex items-center justify-center gap-2 hover:border-[#D4A373] hover:text-[#D4A373] transition-all text-sm font-bold text-[#5A665A]"
+                        >
+                          {copiedId === prod.id ? <CheckCircle2 size={18} className="text-green-600"/> : <LinkIcon size={18}/>} 
+                          {copiedId === prod.id ? "Tersalin!" : "Salin Link"}
+                        </button>
+                        <button 
+                          onClick={() => removeFromShowcase(prod.id)}
+                          className="p-3 border border-[#EAE6D9] rounded-xl text-red-500 hover:bg-red-50 hover:border-red-200 transition-all"
+                          title="Hapus dari Etalase"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="col-span-full py-20 text-center bg-white rounded-[2rem] border border-dashed border-[#EAE6D9]">
+                    <Store size={48} className="mx-auto text-[#EAE6D9] mb-4" />
+                    <p className="text-[#5A665A] mb-2">Etalase Anda masih kosong.</p>
+                    <button onClick={() => setActiveTab("marketplace")} className="text-[#D4A373] font-bold text-sm hover:underline">
+                      Cari produk di Bursa
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: WITHDRAW */}
           {activeTab === "withdraw" && (
              <div className="max-w-2xl mx-auto py-10 text-center">
                 <Wallet size={64} className="mx-auto text-[#D4A373] mb-6 opacity-20" />
@@ -202,7 +280,7 @@ export default function AffiliateDashboard() {
   );
 }
 
-// Komponen Reusable Tetap Sama...
+// Komponen Reusable Tetap Sama
 function TabButton({ active, onClick, icon, label }: any) {
   return (
     <button onClick={onClick} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${active ? "bg-[#2C352D] text-white shadow-md" : "text-[#5A665A] hover:bg-[#F3EFE4]"}`}>
