@@ -19,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
-      <body className={`${inter.variable} ${playfair.variable} font-sans`}>
+    <html lang="id" suppressHydrationWarning>
+      <body className={`${inter.variable} ${playfair.variable} font-sans`} suppressHydrationWarning>
         {/* 👇 Panggil Navbar di sini */}
         <Navbar />
         

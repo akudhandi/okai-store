@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { User, ShoppingCart, LogOut, ShieldCheck } from "lucide-react";
-import { getCartTotalQty } from "../lib/cart";
+// 🚩 UBAH IMPORT: Gunakan getCartDB dari sistem baru
+import { getCartDB } from "../lib/cart";
 import AffiliateMenu from "./AffiliateMenu";
 import { useSearchParams } from "next/navigation";
 
@@ -12,17 +13,15 @@ export default function Navbar() {
   const [userName, setUserName] = useState("");
   const [cartCount, setCartCount] = useState(0); 
 
-  // 👇 1. Panggil hook-nya di sini
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    // 👇 2. SKRIP NINJA PENANGKAP REFERRAL 👇
+    // SKRIP PENANGKAP REFERRAL
     const refCode = searchParams.get("ref");
     if (refCode) {
       localStorage.setItem("kambi_affiliate_ref", refCode);
       console.log("Kode Referral tertangkap dari URL:", refCode);
     }
-    // 👆 =================================== 👆
 
     const checkLoginStatus = () => {
       const token = localStorage.getItem("kambi_token");
@@ -47,8 +46,21 @@ export default function Navbar() {
     window.addEventListener("userUpdated", checkLoginStatus);
     window.addEventListener("userLogin", checkLoginStatus);
 
-    const updateCartBadge = () => {
-      setCartCount(getCartTotalQty());
+    // 🚩 UBAH LOGIKA: Menghitung total barang langsung dari Database
+    const updateCartBadge = async () => {
+      const token = localStorage.getItem("kambi_token");
+      if (token) {
+        try {
+          const cartItems = await getCartDB();
+          // Akumulasi total qty dari seluruh barang di keranjang
+          const totalQty = cartItems.reduce((total, item) => total + item.qty, 0);
+          setCartCount(totalQty);
+        } catch (error) {
+          setCartCount(0);
+        }
+      } else {
+        setCartCount(0);
+      }
     };
     
     updateCartBadge(); 
@@ -60,7 +72,6 @@ export default function Navbar() {
       window.removeEventListener("userLogin", checkLoginStatus);
       window.removeEventListener("cartUpdated", updateCartBadge);
     };
-  // 👇 3. Tambahkan searchParams ke dalam array ini biar Next.js pantau terus URL-nya
   }, [searchParams]); 
 
   const handleLogout = () => {

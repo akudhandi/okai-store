@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
-import { getCart, CartItem } from "../../lib/cart";
+// 🚩 UBAH IMPORT: Gunakan getCartDB dari sistem baru
+import { getCartDB, CartItem } from "../../lib/cart";
 import axiosInstance from "../../lib/axios";
 
 export default function CheckoutPage() {
@@ -21,33 +22,45 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Kalkulasi Harga
-  const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
+  // Kalkulasi Harga (Diselaraskan dengan struktur item.product)
+  const subtotal = cartItems.reduce((acc, item) => {
+    const price = item.product ? Number(item.product.price) : 0;
+    return acc + (price * item.qty);
+  }, 0);
+  
   const ongkir = 25000; // Contoh ongkir flat
   const total = subtotal + ongkir;
 
   useEffect(() => {
-    // 1. Cek Login
-    const token = localStorage.getItem("kambi_token");
-    const userStr = localStorage.getItem("kambi_user");
-    
-    if (!token) {
-      alert("Silakan login terlebih dahulu untuk melakukan pembayaran.");
-      router.push("/login");
-      return;
-    }
-    
-    if (userStr) setUser(JSON.parse(userStr));
+    const fetchCheckoutData = async () => {
+      // 1. Cek Login
+      const token = localStorage.getItem("kambi_token");
+      const userStr = localStorage.getItem("kambi_user");
+      
+      if (!token) {
+        alert("Silakan login terlebih dahulu untuk melakukan pembayaran.");
+        router.push("/login");
+        return;
+      }
+      
+      if (userStr) setUser(JSON.parse(userStr));
 
-    // 2. Tarik Data Keranjang
-    const items = getCart();
-    if (items.length === 0) {
-      router.push("/cart"); // Kalau kosong, balikin ke keranjang
-      return;
-    }
-    
-    setCartItems(items);
-    setIsLoaded(true);
+      // 2. Tarik Data Keranjang dari Basis Data (Asynchronous)
+      try {
+        const items = await getCartDB();
+        if (items.length === 0) {
+          router.push("/cart"); // Kalau kosong, balikin ke keranjang
+          return;
+        }
+        setCartItems(items);
+      } catch (error) {
+        console.error("Gagal mengambil data keranjang", error);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    fetchCheckoutData();
   }, [router]);
 
   const formatIDR = (val: number) => {
@@ -58,7 +71,6 @@ export default function CheckoutPage() {
     e.preventDefault();
     setIsProcessing(true);
 
-    // 👇 1. Jemput kode afiliasi dari laci Local Storage
     const affiliateCode = localStorage.getItem("kambi_affiliate_ref");
 
     try {
@@ -66,24 +78,28 @@ export default function CheckoutPage() {
         address: address,
         payment_method: paymentMethod,
         total_price: total,
-        items: cartItems,
-        // 👇 2. Titipin kode tersebut ke dalam payload (Bisa bernilai KODE atau null)
+        items: cartItems, // Di sisi Backend, pastikan membaca cart_id atau product_id
         affiliate_code: affiliateCode, 
       });
 
       if (response.data.success) {
-        localStorage.removeItem("kambi_cart");
-        
-        // 👇 3. BERSIH-BERSIH: Kalau pesanan sukses, hapus kode dari memori biar gak kehitung dua kali di pesanan berikutnya
+        // Hapus kode afiliasi dari memori agar tidak terbawa ke pesanan selanjutnya
         localStorage.removeItem("kambi_affiliate_ref");
-
         window.dispatchEvent(new Event("cartUpdated"));
-        setIsProcessing(false);
-        setIsSuccess(true);
-        
-        setTimeout(() => {
-          router.push("/");
-        }, 3000);
+
+        // 🚩 LOGIKA PEMISAHAN METODE PEMBAYARAN
+        if (response.data.payment_url) {
+          // JIKA NON-COD: Langsung pindahkan pelanggan ke layar pembayaran Xendit
+          window.location.href = response.data.payment_url;
+        } else {
+          // JIKA COD: Tampilkan layar sukses hijau seperti biasa
+          setIsProcessing(false);
+          setIsSuccess(true);
+          
+          setTimeout(() => {
+            router.push("/");
+          }, 3000);
+        }
       }
     } catch (err) {
       console.error("Checkout Error:", err);
@@ -92,8 +108,7 @@ export default function CheckoutPage() {
     }
   };
 
-  // Jangan render sebelum data siap
-  if (!isLoaded) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#D4A373]" size={40}/></div>;
+  if (!isLoaded) return <div className="min-h-screen flex items-center justify-center bg-[#FDFCF8]"><Loader2 className="animate-spin text-[#D4A373]" size={40}/></div>;
 
   // LAYAR SUKSES
   if (isSuccess) {
@@ -183,10 +198,11 @@ export default function CheckoutPage() {
                 {cartItems.map(item => (
                   <div key={item.id} className="flex justify-between items-start gap-4">
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-[#2C352D] line-clamp-1">{item.name}</p>
-                      <p className="text-xs text-[#5A665A]">{item.qty} x {formatIDR(item.price)}</p>
+                      {/* 🚩 UBAH MAPPING: Menggunakan struktur item.product */}
+                      <p className="text-sm font-semibold text-[#2C352D] line-clamp-1">{item.product?.name}</p>
+                      <p className="text-xs text-[#5A665A]">{item.qty} x {formatIDR(item.product?.price || 0)}</p>
                     </div>
-                    <p className="text-sm font-bold text-[#3A5034]">{formatIDR(item.price * item.qty)}</p>
+                    <p className="text-sm font-bold text-[#3A5034]">{formatIDR((item.product?.price || 0) * item.qty)}</p>
                   </div>
                 ))}
               </div>

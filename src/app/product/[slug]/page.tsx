@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Star, Minus, Plus, ShoppingCart, ShieldCheck, ArrowLeft, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import axiosInstance from "../../../lib/axios";
-import { addToCart } from "../../../lib/cart"; // Import fungsi keranjang
+import { addToCartDB } from "../../../lib/cart"; // Import fungsi keranjang
 
 interface Product {
   id: number;
@@ -54,25 +54,30 @@ export default function ProductDetail() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
 
-  const handleAddToCart = () => {
+  // Jangan lupa import fungsi baru di atas: import { addToCartDB } from "../../../lib/cart";
+
+  const handleAddToCart = async () => {
     if (!product) return;
+    
+    // Cek apakah user sudah login (memiliki token)
+    const token = localStorage.getItem("kambi_token");
+    if (!token) {
+      alert("Silakan masuk (login) ke akun Anda terlebih dahulu untuk berbelanja.");
+      return; // Bisa juga diarahkan dengan: router.push('/login')
+    }
+
     if (qty > product.stock) {
       alert(`Maaf, stok hanya tersisa ${product.stock} pcs!`);
       return;
     }
 
-    // Eksekusi fungsi simpan ke memori
-    addToCart({
-      id: product.id,
-      slug: params?.slug as string,
-      name: product.name,
-      price: Number(product.price),
-      qty: qty,
-      image_url: product.image_url,
-      category: product.category || "Produk",
-    });
-
-    alert(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
+    try {
+      // Eksekusi fungsi simpan ke Database
+      await addToCartDB(product.id, qty);
+      alert(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
+    } catch (error) {
+      alert("Gagal menambahkan ke keranjang. Silakan coba lagi.");
+    }
   };
 
   // --- STATE LOADING ---
