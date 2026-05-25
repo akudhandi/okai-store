@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import axios from "@/lib/axios"; // Sesuaikan dengan path axios kamu
+import axios from "@/lib/axios"; 
 import { Users } from "lucide-react";
 
 export default function AffiliateMenu() {
@@ -12,10 +12,11 @@ export default function AffiliateMenu() {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        // Memanggil API yang kita buat di Laravel tadi
         const response = await axios.get("/user/affiliate-status");
-        if (response.data.success) {
-          setStatus(response.data.status);
+        
+        // 👇 UBAH DI BAGIAN INI (tambah .data satu lagi)
+        if (response.data.success && response.data.data) {
+          setStatus(response.data.data.status);
         }
       } catch (error) {
         console.error("Gagal mengecek status affiliate", error);
@@ -24,10 +25,14 @@ export default function AffiliateMenu() {
       }
     };
 
-    checkStatus();
+    // Pastikan ngecek hanya kalau ada token login (opsional biar nggak error 401 kalau belum login)
+    if (localStorage.getItem("kambi_token")) {
+      checkStatus();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
-  // Jika masih loading atau status bukan 'active', jangan tampilkan apa-apa
   if (loading || status !== "active") return null;
 
   return (

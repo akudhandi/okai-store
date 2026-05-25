@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { Star, Minus, Plus, ShoppingCart, ShieldCheck, ArrowLeft, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import axiosInstance from "../../../lib/axios";
 import { addToCartDB } from "../../../lib/cart"; // Import fungsi keranjang
-
+import ProductReviews from "../../../components/ProductReviews";
 interface Product {
   id: number;
   sku: string;
@@ -181,7 +181,7 @@ export default function ProductDetail() {
 
           </motion.div>
         </div>
-
+              <ProductReviews productId={product.id} />
       </div>
     </div>
   );
