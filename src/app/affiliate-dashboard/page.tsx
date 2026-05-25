@@ -211,10 +211,43 @@ export default function AffiliateDashboard() {
                     </ResponsiveContainer>
                    </div>
                 </div>
-                <div className="bg-white p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
-                  <h3 className="text-xl font-semibold text-[#2C352D] font-playfair mb-6">Aktivitas Terakhir</h3>
-                  <p className="text-sm text-[#5A665A] italic text-center py-10">Belum ada aktivitas transaksi.</p>
+                {/* AKTIVITAS TERAKHIR */}
+          <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm flex flex-col h-full">
+            <h3 className="text-xl font-playfair font-semibold text-[#2C352D] mb-6">Aktivitas Terakhir</h3>
+            
+            <div className="flex-1 space-y-4">
+              {affiliateData?.recent_activities && affiliateData.recent_activities.length > 0 ? (
+                affiliateData.recent_activities.map((act: any) => (
+                  <div key={act.id} className="flex items-start justify-between pb-4 border-b border-[#EAE6D9]/50 last:border-0 last:pb-0">
+                    <div className="flex gap-3 items-start">
+                      <div className={`mt-1 p-2 rounded-full ${act.type === 'commission' ? 'bg-[#3A5034]/10 text-[#3A5034]' : 'bg-[#D4A373]/10 text-[#D4A373]'}`}>
+                        {/* Jika komisi icon hijau, jika penarikan icon dompet orange */}
+                        {act.type === 'commission' ? <TrendingUp size={14} /> : <Wallet size={14} />}
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#2C352D] text-sm">{act.title}</p>
+                        <p className="text-[11px] text-[#5A665A]">
+                          {new Date(act.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-bold text-sm ${act.type === 'commission' ? 'text-[#3A5034]' : 'text-[#2C352D]'}`}>
+                        {act.type === 'commission' ? '+' : '-'} {formatIDR(act.amount)}
+                      </p>
+                      <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${act.status === 'approved' ? 'text-green-600' : act.status === 'pending' ? 'text-orange-500' : 'text-gray-400'}`}>
+                        {act.status}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-50 pt-8">
+                  <p className="text-sm font-medium italic">Belum ada aktivitas transaksi.</p>
                 </div>
+              )}
+            </div>
+          </div>
               </div>
             </div>
           )}
