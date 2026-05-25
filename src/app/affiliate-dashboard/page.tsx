@@ -18,10 +18,54 @@ export default function AffiliateDashboard() {
   const [affiliateData, setAffiliateData] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<number | string | null>(null);
   
-  // STATE SEMENTARA UNTUK ETALASE (Nanti diganti pakai data API)
+  // STATE UNTUK ETALASE (Sekarang akan membaca dari localStorage)
   const [myShowcase, setMyShowcase] = useState<any[]>([]);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawMethod, setWithdrawMethod] = useState("");
+  const [withdrawAccount, setWithdrawAccount] = useState("");
+
+  const handleWithdraw = async (e: any) => {
+    e.preventDefault(); // Mencegah halaman ke-refresh
+
+    // Validasi sederhana
+    if (Number(withdrawAmount) < 50000) {
+      alert("Minimal penarikan adalah Rp 50.000");
+      return;
+    }
+    if (!withdrawMethod || !withdrawAccount) {
+      alert("Harap lengkapi metode pencairan dan nomor rekening/HP!");
+      return;
+    }
+
+    try {
+      const response = await api.post("/user/affiliate-withdraw", {
+        amount: withdrawAmount,
+        bank_name: withdrawMethod,
+        account_number: withdrawAccount
+      });
+
+      if (response.data.success) {
+        alert("Mantap! Permintaan penarikan berhasil dikirim ke Admin.");
+        // Kosongkan form setelah sukses
+        setWithdrawAmount("");
+        setWithdrawMethod("");
+        setWithdrawAccount("");
+        
+        // (Opsional) Kamu bisa panggil fungsi fetchData() lagi di sini 
+        // untuk mengupdate angka saldo tersedia secara otomatis
+      }
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Gagal mengajukan penarikan. Silakan coba lagi.");
+    }
+  };
 
   useEffect(() => {
+    // 1. Ambil data Etalase dari localStorage saat pertama kali halaman dimuat
+    const savedShowcase = localStorage.getItem("kambi_affiliate_showcase");
+    if (savedShowcase) {
+      setMyShowcase(JSON.parse(savedShowcase));
+    }
+
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -60,17 +104,23 @@ export default function AffiliateDashboard() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // --- FUNGSI MOCKUP ETALASE (SEMENTARA) ---
+  // --- FUNGSI MENGELOLA ETALASE (Disimpan ke LocalStorage) ---
   const addToShowcase = (product: any) => {
     if (!myShowcase.find((p) => p.id === product.id)) {
-      setMyShowcase([...myShowcase, product]);
-      // Nanti di sini dikasih fungsi API post ke backend
+      const updatedShowcase = [...myShowcase, product];
+      setMyShowcase(updatedShowcase);
+      
+      // Simpan ke localStorage agar tidak hilang saat di-refresh
+      localStorage.setItem("kambi_affiliate_showcase", JSON.stringify(updatedShowcase));
     }
   };
 
   const removeFromShowcase = (productId: number) => {
-    setMyShowcase(myShowcase.filter((p) => p.id !== productId));
-    // Nanti di sini dikasih fungsi API delete ke backend
+    const updatedShowcase = myShowcase.filter((p) => p.id !== productId);
+    setMyShowcase(updatedShowcase);
+    
+    // Perbarui localStorage setelah produk dihapus
+    localStorage.setItem("kambi_affiliate_showcase", JSON.stringify(updatedShowcase));
   };
 
   const isProductInShowcase = (productId: number) => {
@@ -131,9 +181,21 @@ export default function AffiliateDashboard() {
           {activeTab === "overview" && (
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard title="Saldo Tersedia" value={formatIDR(0)} icon={<Wallet />} color="text-[#3A5034]" bg="bg-[#3A5034]/10" />
-                <StatCard title="Total Komisi" value={formatIDR(0)} icon={<CheckCircle2 />} color="text-[#D4A373]" bg="bg-[#D4A373]/10" />
-                <StatCard title="Total Klik Link" value="0 Klik" icon={<LinkIcon />} color="text-blue-600" bg="bg-blue-50" />
+                <StatCard 
+                  title="Saldo Tersedia" 
+                  value={formatIDR(affiliateData?.available_balance || 0)} 
+                  icon={<Wallet />} color="text-[#3A5034]" bg="bg-[#3A5034]/10" 
+                />
+                <StatCard 
+                  title="Total Komisi" 
+                  value={formatIDR(affiliateData?.total_commission || 0)} 
+                  icon={<CheckCircle2 />} color="text-[#D4A373]" bg="bg-[#D4A373]/10" 
+                />
+                <StatCard 
+                  title="Total Klik Link" 
+                  value={`${affiliateData?.total_clicks || 0} Klik`} 
+                  icon={<LinkIcon />} color="text-blue-600" bg="bg-blue-50" 
+                />
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -265,13 +327,71 @@ export default function AffiliateDashboard() {
             </div>
           )}
 
-          {/* TAB: WITHDRAW */}
+        {/* TAB: WITHDRAW */}
           {activeTab === "withdraw" && (
-             <div className="max-w-2xl mx-auto py-10 text-center">
-                <Wallet size={64} className="mx-auto text-[#D4A373] mb-6 opacity-20" />
-                <h3 className="text-2xl font-playfair text-[#2C352D] mb-2">Fitur Pencairan Dana</h3>
-                <p className="text-[#5A665A] font-light">Kumpulkan komisi Anda minimal {formatIDR(50000)} untuk melakukan penarikan.</p>
-             </div>
+            <div className="max-w-2xl mx-auto py-8">
+              <div className="bg-white p-8 md:p-10 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
+                <div className="text-center mb-10">
+                  <div className="w-20 h-20 bg-[#D4A373]/10 text-[#D4A373] rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Wallet size={40} />
+                  </div>
+                  <h3 className="text-2xl font-playfair font-semibold text-[#2C352D] mb-2">Tarik Komisi</h3>
+                  <p className="text-[#5A665A]">
+                    Saldo yang bisa ditarik: <span className="font-bold text-[#3A5034]">{formatIDR(affiliateData?.available_balance || 0)}</span>
+                  </p>
+                </div>
+
+                <form onSubmit={handleWithdraw} className="space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-2">Nominal Penarikan</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A] font-bold">Rp</span>
+                      <input 
+                        type="number" 
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        placeholder="Min. 50.000"
+                        className="w-full pl-12 pr-4 py-4 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] focus:ring-1 focus:ring-[#D4A373] transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-2">Metode / Bank</label>
+                      <select 
+                        value={withdrawMethod}
+                        onChange={(e) => setWithdrawMethod(e.target.value)}
+                        className="w-full px-4 py-4 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all font-medium"
+                      >
+                        <option value="">Pilih Tujuan...</option>
+                        <option value="BCA">Transfer BCA</option>
+                        <option value="MANDIRI">Transfer Mandiri</option>
+                        <option value="GOPAY">Saldo GoPay</option>
+                        <option value="DANA">Saldo DANA</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-2">No. Rekening / HP</label>
+                      <input 
+                        type="text" 
+                        value={withdrawAccount}
+                        onChange={(e) => setWithdrawAccount(e.target.value)}
+                        placeholder="Contoh: 08123456789"
+                        className="w-full px-4 py-4 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit"
+                    className="w-full py-4 mt-4 bg-[#3A5034] text-white rounded-xl font-bold hover:bg-[#2C352D] transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                  >
+                    Ajukan Penarikan Sekarang
+                  </button>
+                </form>
+              </div>
+            </div>
           )}
 
         </motion.div>
