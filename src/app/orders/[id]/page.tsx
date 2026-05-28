@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Receipt, Package, Truck, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, Receipt, Package, Loader2 } from "lucide-react";
 import axiosInstance from "../../../lib/axios";
+import ReviewModal from "../../../components/ReviewModal"; // <-- Import Modal Ulasan
 
 interface OrderDetail {
   id: string;
@@ -23,6 +24,10 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // --- STATE UNTUK REVIEW MODAL ---
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [selectedProductToReview, setSelectedProductToReview] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     const fetchOrderDetail = async () => {
@@ -45,6 +50,22 @@ export default function OrderDetailPage() {
 
   const formatIDR = (val: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+  };
+
+  // --- FUNGSI SUBMIT ULASAN (Menunggu API Backend) ---
+  const handleReviewSubmit = async (reviewData: { rating: number; comment: string; images: File[] }) => {
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        // Nanti ganti console.log ini dengan Axios POST ke backend
+        console.log("Mengirim ulasan:", {
+          order_id: order?.id,
+          product_id: selectedProductToReview?.id,
+          ...reviewData
+        });
+        alert("Terima kasih! Ulasan kamu berhasil disimpan.");
+        resolve();
+      }, 1000);
+    });
   };
 
   if (isLoading) {
@@ -94,19 +115,34 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {/* List Produk */}
+            {/* List Produk & Tombol Ulasan */}
             <div className="py-8 border-b border-[#EAE6D9]">
               <p className="text-xs font-bold text-[#5A665A] uppercase tracking-widest mb-6 flex items-center gap-2">
                 <Package size={16} className="text-[#D4A373]"/> Rincian Produk
               </p>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {order.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center gap-4">
+                  <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-50 last:border-0 last:pb-0">
                     <div className="flex-1">
                       <p className="font-semibold text-[#2C352D]">{item.name}</p>
-                      <p className="text-sm text-[#5A665A]">{item.qty} x {formatIDR(item.price)}</p>
+                      <p className="text-sm text-[#5A665A] mt-1">{item.qty} x {formatIDR(item.price)}</p>
                     </div>
-                    <p className="font-bold text-[#3A5034]">{formatIDR(item.qty * item.price)}</p>
+                    <div className="flex flex-col items-start sm:items-end gap-2 w-full sm:w-auto">
+                      <p className="font-bold text-[#3A5034]">{formatIDR(item.qty * item.price)}</p>
+                      
+                      {/* 👇 Tombol Review (Hanya muncul jika status completed) 👇 */}
+                      {order.status.toLowerCase() === 'completed' && (
+                        <button 
+                          onClick={() => {
+                            setSelectedProductToReview({ id: item.id, name: item.name });
+                            setIsReviewModalOpen(true);
+                          }}
+                          className="text-xs font-bold bg-orange-50 text-[#E65100] border border-orange-200 px-4 py-2 rounded-xl hover:bg-[#E65100] hover:text-white transition-all shadow-sm w-full sm:w-auto"
+                        >
+                          Nilai Produk
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -114,8 +150,6 @@ export default function OrderDetailPage() {
 
             {/* Total Pembayaran */}
             <div className="pt-8">
-              
-              {/* Hitung subtotal dinamis dari barang */}
               {(() => {
                 const subtotal = order.items.reduce((acc, item) => acc + (item.price * item.qty), 0);
                 const ongkir = order.total - subtotal;
@@ -146,8 +180,20 @@ export default function OrderDetailPage() {
 
           </div>
         </div>
-
       </div>
+
+      {/* RENDER MODAL ULASAN */}
+      <ReviewModal 
+        isOpen={isReviewModalOpen}
+        onClose={() => {
+          setIsReviewModalOpen(false);
+          setSelectedProductToReview(null);
+        }}
+        orderId={order.invoice_no || order.id}
+        productName={selectedProductToReview?.name || ""}
+        onSubmitReview={handleReviewSubmit}
+      />
+
     </div>
   );
 }
