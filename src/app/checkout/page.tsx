@@ -17,10 +17,17 @@ export default function CheckoutPage() {
   const [user, setUser] = useState<any>(null);
   
   // State Form
-  const [address, setAddress] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("transfer_bank");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // State Alamat Terpisah & Telepon
+  const [phone_number, setPhoneNumber] = useState("");
+  const [street, setStreet] = useState("");
+  const [district, setDistrict] = useState("");
+  const [city, setCity] = useState("");
+  const [province, setProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
 
   // Kalkulasi Harga (Diselaraskan dengan struktur item.product)
   const subtotal = cartItems.reduce((acc, item) => {
@@ -43,7 +50,36 @@ export default function CheckoutPage() {
         return;
       }
       
-      if (userStr) setUser(JSON.parse(userStr));
+      let currentUser = null;
+      if (userStr) {
+        currentUser = JSON.parse(userStr);
+        setUser(currentUser);
+      }
+
+      // Tarik alamat dan nomor telepon user dari backend untuk pre-fill
+      if (currentUser?.id) {
+        try {
+          const res = await axiosInstance.get(`/users/${currentUser.id}`);
+          const userData = res.data.data;
+          
+          if (userData.phone_number) setPhoneNumber(userData.phone_number);
+          
+          if (userData.address) {
+            const parts = userData.address.split(",").map((p: string) => p.trim());
+            if (parts.length >= 5) {
+              setPostalCode(parts.pop() || "");
+              setProvince(parts.pop() || "");
+              setCity(parts.pop() || "");
+              setDistrict(parts.pop() || "");
+              setStreet(parts.join(", ") || "");
+            } else {
+              setStreet(userData.address);
+            }
+          }
+        } catch (e) {
+          console.error("Gagal mengambil detail user", e);
+        }
+      }
 
       // 2. Tarik Data Keranjang dari Basis Data (Asynchronous)
       try {
@@ -71,28 +107,46 @@ export default function CheckoutPage() {
     e.preventDefault();
     setIsProcessing(true);
 
+    if (!street || !district || !city || !province || !postalCode || !phone_number) {
+      alert("Mohon lengkapi seluruh data alamat dan nomor telepon untuk pengiriman.");
+      setIsProcessing(false);
+      return;
+    }
+
+    const combinedAddress = `${street}, ${district}, ${city}, ${province}, ${postalCode}`;
     const affiliateCode = localStorage.getItem("kambi_affiliate_ref");
 
     try {
+      // 1. Update user profile dengan nomor telepon dan alamat baru (opsional tapi disarankan)
+      if (user?.id) {
+        try {
+          await axiosInstance.put(`/users/${user.id}`, {
+            name: user.name,
+            email: user.email,
+            phone_number: phone_number,
+            address: combinedAddress
+          });
+        } catch (updateErr) {
+          console.error("Gagal sinkronisasi data user saat checkout", updateErr);
+        }
+      }
+
+      // 2. Buat pesanan
       const response = await axiosInstance.post("/orders", {
-        address: address,
+        address: combinedAddress,
         payment_method: paymentMethod,
         total_price: total,
-        items: cartItems, // Di sisi Backend, pastikan membaca cart_id atau product_id
+        items: cartItems, 
         affiliate_code: affiliateCode, 
       });
 
       if (response.data.success) {
-        // Hapus kode afiliasi dari memori agar tidak terbawa ke pesanan selanjutnya
         localStorage.removeItem("kambi_affiliate_ref");
         window.dispatchEvent(new Event("cartUpdated"));
 
-        // 🚩 LOGIKA PEMISAHAN METODE PEMBAYARAN
         if (response.data.payment_url) {
-          // JIKA NON-COD: Langsung pindahkan pelanggan ke layar pembayaran Xendit
           window.location.href = response.data.payment_url;
         } else {
-          // JIKA COD: Tampilkan layar sukses hijau seperti biasa
           setIsProcessing(false);
           setIsSuccess(true);
           
@@ -148,17 +202,46 @@ export default function CheckoutPage() {
             {/* Box Alamat */}
             <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
               <h2 className="text-xl font-bold font-playfair text-[#2C352D] mb-6 flex items-center gap-2">
-                <MapPin className="text-[#D4A373]"/> Alamat Pengiriman
+                <MapPin className="text-[#D4A373]"/> Alamat Pengiriman & Kontak
               </h2>
               
               <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Penerima</label>
-                  <input type="text" value={user?.name || ""} disabled className="w-full bg-[#F3EFE4] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#5A665A] cursor-not-allowed mt-1" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Penerima</label>
+                    <input type="text" value={user?.name || ""} disabled className="w-full bg-[#F3EFE4] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#5A665A] cursor-not-allowed mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nomor Telepon</label>
+                    <input required type="text" placeholder="08..." value={phone_number} onChange={(e) => setPhoneNumber(e.target.value)} className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1" />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Alamat Lengkap</label>
-                  <textarea required rows={3} placeholder="Nama Jalan, Gedung, No. Rumah, RT/RW, Kecamatan, Kota..." value={address} onChange={(e) => setAddress(e.target.value)} className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1 resize-none" />
+                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Jalan / Gedung / Patokan</label>
+                  <textarea required rows={2} placeholder="Nama Jalan, Gedung, No. Rumah, RT/RW..." value={street} onChange={(e) => setStreet(e.target.value)} className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1 resize-none" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kecamatan</label>
+                    <input required type="text" value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="Contoh: Kebayoran Baru" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kota / Kabupaten</label>
+                    <input required type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Contoh: Jakarta Selatan" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Provinsi</label>
+                    <input required type="text" value={province} onChange={(e) => setProvince(e.target.value)} placeholder="Contoh: DKI Jakarta" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kode Pos</label>
+                    <input required type="number" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Contoh: 12160" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1" />
+                  </div>
                 </div>
               </div>
             </div>

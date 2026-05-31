@@ -8,6 +8,7 @@ import axiosInstance from "../../../lib/axios";
 
 interface OrderDetail {
   id: string;
+  raw_id: number;
   invoice_no: string;
   status: string;
   date: string;
@@ -15,7 +16,14 @@ interface OrderDetail {
   method: string;
   address: string;
   customer: string;
+  payment_url?: string;
   items: Array<{ id: number; name: string; qty: number; price: number }>;
+  tracking?: {
+    waybill_id: string;
+    status: string;
+    courier: string;
+    link: string;
+  };
 }
 
 export default function OrderDetailPage() {
@@ -77,6 +85,52 @@ export default function OrderDetailPage() {
           </div>
 
           <div className="p-8">
+
+            {/* INFO PEMBAYARAN (XENDIT BUTTON) */}
+            {order.status === 'pending' && order.payment_url && (
+              <div className="mb-8 p-6 bg-orange-50 border border-orange-100 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div>
+                  <p className="text-[#3A5034] font-bold">Menunggu Pembayaran</p>
+                  <p className="text-xs text-[#5A665A]">Silakan selesaikan pembayaran agar pesanan segera diproses.</p>
+                </div>
+                <a 
+                  href={order.payment_url} 
+                  target="_blank" 
+                  className="w-full sm:w-auto px-8 py-3 bg-[#D4A373] text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 hover:bg-[#b0865c] transition-all text-center"
+                >
+                  Bayar Sekarang
+                </a>
+              </div>
+            )}
+
+            {/* INFO TRACKING (BITESHIP) */}
+            {order.tracking && (
+              <div className="mb-8 p-6 bg-[#F3EFE4]/30 border border-[#EAE6D9] rounded-2xl">
+                <p className="text-xs font-bold text-[#5A665A] uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Truck size={16} className="text-[#D4A373]"/> Informasi Pelacakan
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] text-[#5A665A] uppercase font-bold">Nomor Resi</p>
+                    <p className="font-black text-[#3A5034] tracking-wider">{order.tracking.waybill_id}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-[#5A665A] uppercase font-bold">Status Paket</p>
+                    <p className="font-bold text-[#2C352D] capitalize">{order.tracking.status}</p>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-[#EAE6D9]">
+                  <a 
+                    href={order.tracking.link} 
+                    target="_blank" 
+                    className="text-xs font-bold text-[#D4A373] hover:underline flex items-center gap-1"
+                  >
+                    Lihat Dokumen Pengiriman & Histori Lengkap
+                  </a>
+                </div>
+              </div>
+            )}
+
             {/* Info Resi & Invoice */}
             <div className="flex flex-col sm:flex-row justify-between gap-6 pb-8 border-b border-[#EAE6D9]">
               <div>

@@ -155,9 +155,11 @@ export default function ProductDetail() {
             </div>
 
             {/* Fitur Utama & Info Stok */}
-            <div className="grid grid-cols-2 gap-4 mb-10">
-              <div className="flex items-center gap-3 text-[#2C352D]"><CheckCircle2 size={20} className="text-[#D4A373]"/> <span className="font-medium text-sm">Stok: {product.stock} pcs</span></div>
-              <div className="flex items-center gap-3 text-[#2C352D]"><CheckCircle2 size={20} className="text-[#D4A373]"/> <span className="font-medium text-sm">Dikirim dari: {product.warehouse}</span></div>
+            <div className="mb-10">
+              <div className="flex items-center gap-3 text-[#2C352D]">
+                <CheckCircle2 size={20} className="text-[#D4A373]"/> 
+                <span className="font-medium text-sm text-lg font-bold">Stok: {product.stock} pcs (Tersedia)</span>
+              </div>
             </div>
 
             {/* Action Area (Add to Cart) */}
