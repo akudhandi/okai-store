@@ -15,14 +15,27 @@ export interface CartItem {
   };
 }
 
-// 1. Ambil isi keranjang dari Database
+// Pastikan tipe CartItem sudah terdefinisi di file kamu
+// import axiosInstance from "./axios";
+
 export const getCartDB = async (): Promise<CartItem[]> => {
   try {
     const response = await axiosInstance.get("/carts");
     return response.data.data || [];
-  } catch (error) {
+  } catch (error: any) {
+    // Tangkap error 401 secara spesifik
+    if (error.response && error.response.status === 401) {
+      console.warn("Sesi login kadaluarsa. Mengabaikan penarikan keranjang.");
+      
+      // Opsional: Kamu bisa otomatis menghapus token yang sudah basi di sini
+      // localStorage.removeItem("kambi_token");
+      // localStorage.removeItem("kambi_user");
+      
+      return []; // Return array kosong agar tidak membuat aplikasi crash
+    }
+    
     console.error("Gagal mengambil keranjang:", error);
-    return [];
+    return []; // Pastikan selalu mengembalikan array
   }
 };
 
