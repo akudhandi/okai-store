@@ -7,11 +7,12 @@ export interface CartItem {
   product_id: number; // ID dari tabel products
   qty: number;
   product: {          // Data produk hasil JOIN / Eloquent relasi dari backend
-    slug: string;
+    
     name: string;
     price: number;
     image_url: string | null;
     category: string;
+    id: number;
   };
 }
 

@@ -95,6 +95,16 @@ export default function ProductReviews({ productId }: { productId: number }) {
                     ))}
                   </div>
                 )}
+
+                {/* Tampilkan Balasan Admin Jika Ada */}
+{review.admin_reply && (
+  <div className="mt-4 bg-[#F3EFE4]/50 p-4 rounded-2xl border-l-4 border-[#D4A373]">
+    <div className="flex items-center gap-2 mb-1">
+      <span className="font-black text-[10px] text-[#D4A373] uppercase tracking-widest">Admin KAMBI</span>
+    </div>
+    <p className="text-[#5A665A] text-sm italic">"{review.admin_reply}"</p>
+  </div>
+)}
               </div>
             </div>
           </div>
