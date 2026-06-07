@@ -96,7 +96,7 @@ export default function ProductReviews({ productId }: { productId: number }) {
                   </div>
                 )}
 
-                {/* Tampilkan Balasan Admin Jika Ada */}
+                {/* Tampilkan Balasan Admin Jika Adaa */}
 {review.admin_reply && (
   <div className="mt-4 bg-[#F3EFE4]/50 p-4 rounded-2xl border-l-4 border-[#D4A373]">
     <div className="flex items-center gap-2 mb-1">
