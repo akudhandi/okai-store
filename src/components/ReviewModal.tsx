@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Star, X, Image as ImageIcon, Send, Loader2, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface ReviewModalProps {
   isOpen: boolean;
@@ -37,7 +38,7 @@ export default function ReviewModal({ isOpen, onClose, orderId, productName, onS
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === 0) {
-      alert("Mohon berikan bintang penilaian terlebih dahulu ya!");
+      toast.error("Mohon berikan bintang penilaian terlebih dahulu ya!");
       return;
     }
 

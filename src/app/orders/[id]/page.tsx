@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, MapPin, Receipt, Package, Loader2 } from "lucide-react";
 import axiosInstance from "../../../lib/axios";
 import ReviewModal from "../../../components/ReviewModal"; // <-- Import Modal Ulasan
+import toast from 'react-hot-toast';
 
 interface OrderDetail {
   id: string;
@@ -46,7 +47,7 @@ export default function OrderDetailPage() {
         }
       } catch (err) {
         console.error("Gagal mengambil detail pesanan", err);
-        alert("Pesanan tidak ditemukan atau akses ditolak.");
+        toast.error("Pesanan tidak ditemukan atau akses ditolak.");
         router.push("/orders");
       } finally {
         setIsLoading(false);
@@ -70,7 +71,7 @@ export default function OrderDetailPage() {
           product_id: selectedProductToReview?.id,
           ...reviewData
         });
-        alert("Terima kasih! Ulasan kamu berhasil disimpan.");
+        toast.success("Terima kasih! Ulasan kamu berhasil disimpan.");
         resolve();
       }, 1000);
     });

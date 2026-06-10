@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Package, Clock, Truck, CheckCircle2, ArrowLeft, Loader2, ChevronRight, Star } from "lucide-react";
 import axiosInstance from "../../lib/axios";
 import ReviewModal from "../../components/ReviewModal";
+import toast from 'react-hot-toast';
 
 interface OrderItem {
   id: number;
@@ -131,11 +132,11 @@ export default function OrdersPage() {
       });
 
       if (response.data.success) {
-        alert("Ulasan Anda berhasil dikirim! Terima kasih.");
+        toast.success("Ulasan Anda berhasil dikirim! Terima kasih.");
         window.location.reload(); 
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || "Gagal mengirim ulasan. Silakan coba lagi.");
+      toast.error(error.response?.data?.message || "Gagal mengirim ulasan. Silakan coba lagi.");
     }
   };
 

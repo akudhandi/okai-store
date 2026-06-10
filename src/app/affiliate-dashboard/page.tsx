@@ -10,6 +10,7 @@ import {
   AreaChart, Area, XAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import api from "@/lib/axios";
+import toast from 'react-hot-toast';
 
 export default function AffiliateDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -29,11 +30,11 @@ export default function AffiliateDashboard() {
 
     // Validasi sederhana
     if (Number(withdrawAmount) < 50000) {
-      alert("Minimal penarikan adalah Rp 50.000");
+      toast.error("Minimal penarikan adalah Rp 50.000");
       return;
     }
     if (!withdrawMethod || !withdrawAccount) {
-      alert("Harap lengkapi metode pencairan dan nomor rekening/HP!");
+      toast.error("Harap lengkapi metode pencairan dan nomor rekening/HP!");
       return;
     }
 
@@ -45,7 +46,7 @@ export default function AffiliateDashboard() {
       });
 
       if (response.data.success) {
-        alert("Mantap! Permintaan penarikan berhasil dikirim ke Admin.");
+        toast.success("Mantap! Permintaan penarikan berhasil dikirim ke Admin.");
         // Kosongkan form setelah sukses
         setWithdrawAmount("");
         setWithdrawMethod("");
@@ -55,7 +56,7 @@ export default function AffiliateDashboard() {
         // untuk mengupdate angka saldo tersedia secara otomatis
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || "Gagal mengajukan penarikan. Silakan coba lagi.");
+      toast.error(error.response?.data?.message || "Gagal mengajukan penarikan. Silakan coba lagi.");
     }
   };
 

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Mail, Lock, User, Eye, EyeOff, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
 import axiosInstance from "../../lib/axios"; 
+import toast from 'react-hot-toast';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -62,7 +63,7 @@ export default function LoginPage() {
         window.dispatchEvent(new Event("userLogin"));
 
         // Alert sukses dari kodingan baru
-        alert(isLogin ? "Login Berhasil!" : "Pendaftaran Berhasil!");
+        toast.success(isLogin ? "Login Berhasil!" : "Pendaftaran Berhasil!");
         
         // Pindah ke Beranda
         router.push("/"); 

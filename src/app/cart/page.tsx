@@ -6,6 +6,7 @@ import { motion, Variants } from "framer-motion";
 import { Trash2, Minus, Plus, ArrowRight, ShoppingBag, ShieldCheck, Lock, Loader2 } from "lucide-react";
 // Mengimpor fungsi penanganan keranjang berbasis basis data
 import { getCartDB, updateCartQtyDB, removeFromCartDB, CartItem } from "../../lib/cart"; 
+import toast from 'react-hot-toast';
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -60,7 +61,7 @@ export default function CartPage() {
       const data = await getCartDB(); // Sinkronisasi ulang data terbaru
       setCartItems(data);
     } catch (error) {
-      alert("Gagal menghapus produk dari keranjang.");
+      toast.error("Gagal menghapus produk dari keranjang.");
     }
   };
 

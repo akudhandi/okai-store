@@ -7,6 +7,7 @@ import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, Che
 // 🚩 UBAH IMPORT: Gunakan getCartDB dari sistem baru
 import { getCartDB, CartItem } from "../../lib/cart";
 import axiosInstance from "../../lib/axios";
+import toast from 'react-hot-toast';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function CheckoutPage() {
       const userStr = localStorage.getItem("kambi_user");
       
       if (!token) {
-        alert("Silakan login terlebih dahulu untuk melakukan pembayaran.");
+        toast.error("Silakan login terlebih dahulu untuk melakukan pembayaran.");
         router.push("/login");
         return;
       }
@@ -108,7 +109,7 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     if (!street || !district || !city || !province || !postalCode || !phone_number) {
-      alert("Mohon lengkapi seluruh data alamat dan nomor telepon untuk pengiriman.");
+      toast.error("Mohon lengkapi seluruh data alamat dan nomor telepon untuk pengiriman.");
       setIsProcessing(false);
       return;
     }
@@ -157,7 +158,7 @@ export default function CheckoutPage() {
       }
     } catch (err) {
       console.error("Checkout Error:", err);
-      alert("Gagal memproses pesanan. Silakan coba lagi.");
+      toast.error("Gagal memproses pesanan. Silakan coba lagi.");
       setIsProcessing(false);
     }
   };

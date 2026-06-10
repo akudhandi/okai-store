@@ -8,6 +8,8 @@ import { Star, Minus, Plus, ShoppingCart, ShieldCheck, ArrowLeft, CheckCircle2, 
 import axiosInstance from "../../../lib/axios";
 import { addToCartDB } from "../../../lib/cart"; // Import fungsi keranjang
 import ProductReviews from "../../../components/ProductReviews";
+import toast from 'react-hot-toast';
+
 interface Product {
   id: number;
   sku: string;
@@ -62,21 +64,21 @@ export default function ProductDetail() {
     // Cek apakah user sudah login (memiliki token)
     const token = localStorage.getItem("kambi_token");
     if (!token) {
-      alert("Silakan masuk (login) ke akun Anda terlebih dahulu untuk berbelanja.");
+      toast.error("Silakan masuk (login) ke akun Anda terlebih dahulu untuk berbelanja.");
       return; // Bisa juga diarahkan dengan: router.push('/login')
     }
 
     if (qty > product.stock) {
-      alert(`Maaf, stok hanya tersisa ${product.stock} pcs!`);
+      toast.error(`Maaf, stok hanya tersisa ${product.stock} pcs!`);
       return;
     }
 
     try {
       // Eksekusi fungsi simpan ke Database
       await addToCartDB(product.id, qty);
-      alert(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
+      toast.success(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
     } catch (error) {
-      alert("Gagal menambahkan ke keranjang. Silakan coba lagi.");
+      toast.error("Gagal menambahkan ke keranjang. Silakan coba lagi.");
     }
   };
 
