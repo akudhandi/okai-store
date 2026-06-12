@@ -186,6 +186,41 @@ export default function LoginPage() {
                 </div>
               </form>
 
+              <div className="mt-6 flex items-center before:mt-0.5 before:flex-1 before:border-t before:border-[#EAE6D9] after:mt-0.5 after:flex-1 after:border-t after:border-[#EAE6D9]">
+                <span className="mx-4 mb-0 text-center text-xs text-[#5A665A] font-medium tracking-widest uppercase">Atau</span>
+              </div>
+              <div className="mt-6">
+                <button 
+                  type="button" 
+                  disabled={isLoading}
+                  onClick={async () => {
+                    setIsLoading(true);
+                    try {
+                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/google/url`);
+                      const data = await res.json();
+                      if (data.url) {
+                        window.location.href = data.url;
+                      } else {
+                        toast.error("Gagal mendapatkan link login Google");
+                        setIsLoading(false);
+                      }
+                    } catch (err) {
+                      toast.error("Terjadi kesalahan sistem saat mencoba login Google");
+                      setIsLoading(false);
+                    }
+                  }} 
+                  className="w-full flex items-center justify-center gap-3 bg-white border-2 border-[#EAE6D9] text-[#2C352D] py-3.5 rounded-xl font-bold tracking-wide hover:bg-[#FDFCF8] transition-all duration-300 disabled:opacity-50"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25C22.56 11.47 22.49 10.72 22.36 10H12V14.26H17.92C17.67 15.63 16.86 16.8 15.7 17.58V20.34H19.26C20.04 19.63 22.56 16.14 22.56 12.25Z" fill="#4285F4"/>
+                    <path d="M12 23C14.97 23 17.46 22.02 19.26 20.34L15.7 17.58C14.73 18.23 13.48 18.64 12 18.64C9.13 18.64 6.7 16.7 5.8 14.07H2.15V16.9C3.96 20.5 6.71 23 12 23Z" fill="#34A853"/>
+                    <path d="M5.8 14.07C5.57 13.38 5.44 12.65 5.44 11.9C5.44 11.15 5.57 10.42 5.8 9.73V6.9H2.15C1.41 8.38 1 9.92 1 11.9C1 13.88 1.41 15.42 2.15 16.9L5.8 14.07Z" fill="#FBBC05"/>
+                    <path d="M12 5.16C13.62 5.16 15.06 5.72 16.2 6.81L19.33 3.68C17.45 1.94 14.97 1 12 1C6.71 1 3.96 3.5 2.15 6.9L5.8 9.73C6.7 7.1 9.13 5.16 12 5.16Z" fill="#EA4335"/>
+                  </svg>
+                  Lanjutkan dengan Google
+                </button>
+              </div>
+
               <div className="mt-8 text-center">
                 <p className="text-sm text-[#5A665A] font-light">
                   {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}

@@ -22,6 +22,11 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // State Affiliate
+  const [affiliateCodeInput, setAffiliateCodeInput] = useState("");
+  const [isAffiliateValid, setIsAffiliateValid] = useState(false);
+  const [isCheckingAffiliate, setIsCheckingAffiliate] = useState(false);
+
   // State Alamat Terpisah & Telepon
   const [phone_number, setPhoneNumber] = useState("");
   const [street, setStreet] = useState("");
@@ -260,13 +265,6 @@ export default function CheckoutPage() {
                   <CreditCard size={28} className={paymentMethod === 'transfer_bank' ? 'text-[#3A5034]' : 'text-[#5A665A]'}/>
                   <span className={`font-semibold text-sm ${paymentMethod === 'transfer_bank' ? 'text-[#3A5034]' : 'text-[#5A665A]'}`}>Transfer Bank</span>
                 </label>
-
-                {/* Option 2 */}
-                <label className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-all ${paymentMethod === 'cod' ? 'border-[#3A5034] bg-[#3A5034]/5' : 'border-[#EAE6D9] hover:border-[#D4A373]/50'}`}>
-                  <input type="radio" name="payment" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="hidden" />
-                  <Truck size={28} className={paymentMethod === 'cod' ? 'text-[#3A5034]' : 'text-[#5A665A]'}/>
-                  <span className={`font-semibold text-sm ${paymentMethod === 'cod' ? 'text-[#3A5034]' : 'text-[#5A665A]'}`}>Bayar di Tempat (COD)</span>
-                </label>
               </div>
             </div>
 
@@ -274,6 +272,32 @@ export default function CheckoutPage() {
 
           {/* KOLOM KANAN: Ringkasan & Tombol Bayar */}
           <div className="w-full lg:w-[400px]">
+            {/* Box Affiliate Code */}
+            <div className="bg-white p-6 rounded-[2rem] border border-[#EAE6D9] shadow-sm mb-6">
+              <h3 className="text-sm font-bold text-[#2C352D] uppercase tracking-widest mb-3">Kode Referral (Opsional)</h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={affiliateCodeInput}
+                  onChange={(e) => {
+                    setAffiliateCodeInput(e.target.value);
+                    setIsAffiliateValid(false);
+                  }}
+                  placeholder="Masukkan kode..."
+                  className="flex-1 bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3 text-sm text-[#2C352D] focus:outline-none focus:border-[#D4A373] transition-all"
+                  disabled={isAffiliateValid}
+                />
+                <button
+                  type="button"
+                  onClick={isAffiliateValid ? () => { setAffiliateCodeInput(""); setIsAffiliateValid(false); } : handleCheckAffiliate}
+                  disabled={!affiliateCodeInput || isCheckingAffiliate}
+                  className={`px-4 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 ${isAffiliateValid ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-[#F3EFE4] text-[#3A5034] hover:bg-[#EAE6D9]"}`}
+                >
+                  {isCheckingAffiliate ? <Loader2 size={16} className="animate-spin" /> : (isAffiliateValid ? "Batal" : "Gunakan")}
+                </button>
+              </div>
+            </div>
+
             <div className="bg-white p-8 rounded-[2.5rem] border border-[#EAE6D9] shadow-sm sticky top-28">
               <h3 className="text-xl font-bold text-[#2C352D] font-playfair mb-6 border-b border-[#EAE6D9] pb-4">Ringkasan Pesanan</h3>
               
