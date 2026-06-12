@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+// 1. TAMBAHKAN 'use' PADA IMPORT REACT
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation"; // 👈 IMPORT UNTUK BACA URL
 import { motion } from "framer-motion";
 import { Star, Minus, Plus, ShoppingCart, ShieldCheck, ArrowLeft, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import axiosInstance from "../../../lib/axios";
-import { addToCartDB } from "../../../lib/cart"; // Import fungsi keranjang
+import { addToCartDB } from "../../../lib/cart"; 
 import ProductReviews from "../../../components/ProductReviews";
+
 interface Product {
   id: number;
   sku: string;
@@ -20,19 +22,42 @@ interface Product {
   image_url: string | null;
 }
 
-export default function ProductDetail() {
-  const params = useParams();
+// 2. SESUAIKAN TIPE DATA PARAMS MENJADI PROMISE
+export default function ProductDetail({ params }: { params: Promise<{ id: string }> }) {
+  // 3. GUNAKAN 'use()' UNTUK MEMBUKA PROMISE PARAMS
+  const resolvedParams = use(params);
+  
+  // 👈 TANGKAP KODE AFILIASI DARI URL (Contoh: ?ref=KMB-JOKO123)
+  const searchParams = useSearchParams();
+  const refCode = searchParams.get('ref');
+
   const [qty, setQty] = useState(1);
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Mengambil data spesifik berdasarkan ID/Slug dari URL
   useEffect(() => {
+    // 🔥 FUNGSI PEREKAM KLIK AFILIASI (Berjalan di belakang layar)
+    const recordClick = async () => {
+      if (refCode && resolvedParams?.id) {
+        // Cek SessionStorage agar tidak spam hitung klik kalau user cuma refresh halaman
+        const hasClicked = sessionStorage.getItem(`clicked_${refCode}_${resolvedParams.id}`);
+        
+        if (!hasClicked) {
+          try {
+            await axiosInstance.post('/affiliate/track', { ref: refCode });
+            sessionStorage.setItem(`clicked_${refCode}_${resolvedParams.id}`, 'true');
+          } catch (err) {
+            console.error("Gagal merekam klik afiliasi", err);
+          }
+        }
+      }
+    };
+
     const fetchProductDetail = async () => {
       try {
-        // params.slug ini berisi ID produk (karena di katalog kita passing ID)
-        const response = await axiosInstance.get(`/products/${params?.slug}`);
+        // 4. GUNAKAN resolvedParams.id, BUKAN params.id LAGI
+        const response = await axiosInstance.get(`/products/${resolvedParams.id}`);
         const data = response.data.data || response.data;
         setProduct(data);
         setIsLoading(false);
@@ -43,27 +68,24 @@ export default function ProductDetail() {
       }
     };
 
-    if (params?.slug) {
+    if (resolvedParams?.id) {
       fetchProductDetail();
+      recordClick(); // 👈 PANGGIL SENSOR PEREKAM DI SINI
     }
-  }, [params?.slug]);
+  }, [resolvedParams?.id, refCode]); 
 
-  // Fungsi kebal error untuk format rupiah
   const formatIDR = (val: any) => {
     const num = Number(val) || 0; 
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
 
-  // Jangan lupa import fungsi baru di atas: import { addToCartDB } from "../../../lib/cart";
-
   const handleAddToCart = async () => {
     if (!product) return;
     
-    // Cek apakah user sudah login (memiliki token)
     const token = localStorage.getItem("kambi_token");
     if (!token) {
       alert("Silakan masuk (login) ke akun Anda terlebih dahulu untuk berbelanja.");
-      return; // Bisa juga diarahkan dengan: router.push('/login')
+      return; 
     }
 
     if (qty > product.stock) {
@@ -72,7 +94,6 @@ export default function ProductDetail() {
     }
 
     try {
-      // Eksekusi fungsi simpan ke Database
       await addToCartDB(product.id, qty);
       alert(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
     } catch (error) {
@@ -183,7 +204,7 @@ export default function ProductDetail() {
 
           </motion.div>
         </div>
-              <ProductReviews productId={product.id} />
+        <ProductReviews productId={product.id} />
       </div>
     </div>
   );
