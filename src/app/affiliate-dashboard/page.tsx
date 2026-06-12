@@ -204,10 +204,32 @@ export default function AffiliateDashboard() {
                    <h3 className="text-xl font-semibold text-[#2C352D] font-playfair mb-8">Performa 7 Hari Terakhir</h3>
                    <div className="h-[250px] w-full">
                     <ResponsiveContainer width="100%" height={250}>
-                      <AreaChart data={[{name: 'Sen', k: 0}, {name: 'Min', k: 0}]}>
-                        <XAxis dataKey="name" hide />
-                        <Tooltip formatter={(val: any) => formatIDR(Number(val))} />
-                        <Area type="monotone" dataKey="k" stroke="#D4A373" fill="#D4A373" fillOpacity={0.1} />
+                      <AreaChart 
+                        data={
+                          // Mengecek apakah backend sudah mengirim data grafik mingguan
+                          affiliateData?.weekly_chart_data && affiliateData.weekly_chart_data.length > 0 
+                            ? affiliateData.weekly_chart_data 
+                            : [
+                                // Ini Fallback jika backend belum siap (minimal grafiknya rata dulu, nggak error)
+                                {name: 'H-6', k: 0}, {name: 'H-5', k: 0}, {name: 'H-4', k: 0},
+                                {name: 'H-3', k: 0}, {name: 'H-2', k: 0}, {name: 'H-1', k: 0},
+                                {name: 'Hari Ini', k: affiliateData?.total_commission > 0 ? affiliateData.total_commission : 0}
+                              ]
+                        }
+                      >
+                        <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#5A665A' }} axisLine={false} tickLine={false} />
+                        <Tooltip 
+                          formatter={(val: any) => [formatIDR(Number(val)), "Komisi"]} 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="k" 
+                          stroke="#3A5034" 
+                          strokeWidth={3}
+                          fill="#D4A373" 
+                          fillOpacity={0.2} 
+                        />
                       </AreaChart>
                     </ResponsiveContainer>
                    </div>

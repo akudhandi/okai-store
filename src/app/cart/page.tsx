@@ -17,10 +17,18 @@ export default function CartPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false); 
+  const [refCode, setRefCode] = useState<string | null>(null); // State untuk menampung kode referral
 
   useEffect(() => {
     const fetchCartData = async () => {
       const token = localStorage.getItem("kambi_token");
+      
+      // Ambil kode referral yang mungkin sudah disimpan di LocalStorage saat klik link pertama kali
+      const savedRef = localStorage.getItem("affiliate_ref");
+      if (savedRef) {
+        setRefCode(savedRef);
+      }
+
       if (token) {
         setIsLoggedIn(true);
         const data = await getCartDB();
@@ -37,35 +45,28 @@ export default function CartPage() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
 
-  // Memperbarui kuantitas pada basis data
   const updateQty = async (cartId: number, newQty: number) => {
     if (newQty < 1) return;
-    
-    // Pembaruan optimistik pada state internal untuk performa visual yang cepat
     const updatedCart = cartItems.map(item => item.id === cartId ? { ...item, qty: newQty } : item);
     setCartItems(updatedCart);
-    
     try {
       await updateCartQtyDB(cartId, newQty);
     } catch (error) {
-      // Mengembalikan data asli apabila proses server mengalami kegagalan
       const originalData = await getCartDB();
       setCartItems(originalData);
     }
   };
 
-  // Menghapus item dari basis data
   const handleRemoveItem = async (cartId: number) => {
     try {
       await removeFromCartDB(cartId);
-      const data = await getCartDB(); // Sinkronisasi ulang data terbaru
+      const data = await getCartDB(); 
       setCartItems(data);
     } catch (error) {
       toast.error("Gagal menghapus produk dari keranjang.");
     }
   };
 
-  // Kalkulasi total harga akumulatif secara real-time dengan merujuk pada objek product
   const subtotal = cartItems.reduce((acc, item) => {
     const price = item.product ? Number(item.product.price) : 0;
     return acc + (price * item.qty);
@@ -82,9 +83,7 @@ export default function CartPage() {
   return (
     <div className="min-h-screen bg-[#FDFCF8] pt-12 pb-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        
         {!isLoggedIn ? (
-          /* TAMPILAN JIKA BELUM TERAUTENTIKASI */
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="bg-white p-8 md:p-12 rounded-[3rem] border border-[#EAE6D9] shadow-xl text-center flex flex-col items-center justify-center min-h-[500px]">
             <div className="w-20 h-20 bg-[#F3EFE4] text-[#D4A373] rounded-full flex items-center justify-center mb-6 shadow-inner">
               <Lock size={32} />
@@ -98,7 +97,6 @@ export default function CartPage() {
             </Link>
           </motion.div>
         ) : (
-          /* TAMPILAN JIKA SUDAH LOG IN */
           <>
             <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
               <h1 className="text-4xl md:text-5xl font-semibold text-[#2C352D] font-playfair tracking-tight mb-2">Keranjang Anda</h1>
@@ -106,7 +104,6 @@ export default function CartPage() {
             </motion.div>
 
             {cartItems.length === 0 ? (
-              /* KONDISI KERANJANG KOSONG */
               <motion.div initial="hidden" animate="visible" variants={fadeUp} className="text-center py-32 bg-white rounded-[3rem] border border-[#EAE6D9] shadow-sm relative">
                 <div className="w-24 h-24 bg-[#F3EFE4] rounded-full flex items-center justify-center mx-auto mb-6 text-[#D4A373]">
                   <ShoppingBag size={40} />
@@ -118,14 +115,13 @@ export default function CartPage() {
                 </Link>
               </motion.div>
             ) : (
-              /* KONDISI KERANJANG TERISI */
               <div className="flex flex-col lg:flex-row gap-10">
                 <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex-1 space-y-6">
                   {cartItems.map((item) => (
                     <div key={item.id} className="bg-white p-4 sm:p-6 rounded-3xl border border-[#EAE6D9] shadow-sm flex flex-col sm:flex-row items-center gap-6 group hover:shadow-md transition-all">
                       
-                      {/* Tautan Menuju Detail Produk Berdasarkan Properti Objek Relasi */}
-                      <Link href={`/product/${item.product?.slug}`} className="w-24 h-24 sm:w-32 sm:h-32 bg-[#FDFCF8] rounded-2xl flex items-center justify-center border border-[#EAE6D9]/50 overflow-hidden shrink-0">
+                      {/* FIX: Link ke ID produk */}
+                      <Link href={`/product/${item.product?.id}`} className="w-24 h-24 sm:w-32 sm:h-32 bg-[#FDFCF8] rounded-2xl flex items-center justify-center border border-[#EAE6D9]/50 overflow-hidden shrink-0">
                         {item.product?.image_url ? (
                            <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                         ) : (
@@ -137,7 +133,8 @@ export default function CartPage() {
                         <div className="flex justify-between items-start mb-1">
                           <span className="text-[10px] font-bold text-[#5A665A] uppercase tracking-widest">{item.product?.category || "Produk"}</span>
                         </div>
-                        <Link href={`/product/${item.product?.slug}`}>
+                        {/* FIX: Link ke ID produk */}
+                        <Link href={`/product/${item.product?.id}`}>
                           <h3 className="text-xl font-semibold text-[#2C352D] font-playfair group-hover:text-[#D4A373] transition-colors mb-2 line-clamp-1">{item.product?.name}</h3>
                         </Link>
                         <p className="text-xl font-bold text-[#3A5034] mb-4">{formatIDR(item.product?.price)}</p>
@@ -157,7 +154,6 @@ export default function CartPage() {
                   ))}
                 </motion.div>
 
-                {/* AREA RINGKASAN PEMBAYARAN */}
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="w-full lg:w-[400px]">
                   <div className="bg-white p-8 rounded-[2.5rem] border border-[#EAE6D9] shadow-sm sticky top-28">
                     <h3 className="text-2xl font-semibold text-[#2C352D] font-playfair mb-6">Ringkasan Pesanan</h3>
@@ -175,9 +171,15 @@ export default function CartPage() {
                       <span className="text-lg font-medium text-[#2C352D]">Total</span>
                       <span className="text-3xl font-bold text-[#3A5034] tracking-tight">{formatIDR(subtotal)}</span>
                     </div>
-                    <Link href="/checkout" className="w-full flex items-center justify-center gap-2 bg-[#3A5034] text-white py-4 rounded-2xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300">
+
+                    {/* FIX: Meneruskan kode referral dari cart ke checkout */}
+                    <Link 
+                      href={refCode ? `/checkout?ref=${refCode}` : "/checkout"} 
+                      className="w-full flex items-center justify-center gap-2 bg-[#3A5034] text-white py-4 rounded-2xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300"
+                    >
                       Lanjut ke Checkout <ArrowRight size={18} />
                     </Link>
+
                     <div className="mt-6 flex items-center justify-center gap-2 text-sm text-[#5A665A] font-light">
                       <ShieldCheck size={16} className="text-[#D4A373]" /> Transaksi Aman & Terenkripsi
                     </div>
