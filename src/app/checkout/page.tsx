@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
-// 🚩 UBAH IMPORT: Gunakan getCartDB dari sistem baru
+// 👇 IMPORT TAMBAHAN: Users untuk icon Referral
+import { ArrowLeft, MapPin, CreditCard, Wallet, ShieldCheck, Loader2, CheckCircle2, Ticket, Users } from "lucide-react";
 import { getCartDB, CartItem } from "../../lib/cart";
 import axiosInstance from "../../lib/axios";
 
@@ -16,7 +16,7 @@ export default function CheckoutPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [user, setUser] = useState<any>(null);
   
-  // State Form
+  // State Form Pembayaran
   const [paymentMethod, setPaymentMethod] = useState("transfer_bank");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -29,14 +29,81 @@ export default function CheckoutPage() {
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
-  // Kalkulasi Harga (Diselaraskan dengan struktur item.product)
+  // =========================================
+  // STATE & LOGIKA KUPON PROMO
+  // =========================================
+  const [couponCode, setCouponCode] = useState("");
+  const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
+  const [activeCoupon, setActiveCoupon] = useState<any>(null); 
+  const [couponMessage, setCouponMessage] = useState({ text: "", isError: false });
+
+  // =========================================
+  // STATE KODE REFERRAL (AFFILIATE) 🔥
+  // =========================================
+  const [affiliateCode, setAffiliateCode] = useState("");
+
+  // Kalkulasi Harga Dasar
   const subtotal = cartItems.reduce((acc, item) => {
     const price = item.product ? Number(item.product.price) : 0;
     return acc + (price * item.qty);
   }, 0);
   
   const ongkir = 25000; // Contoh ongkir flat
-  const total = subtotal + ongkir;
+
+  // Kalkulasi Diskon Berdasarkan Kupon Aktif
+  let discountAmount = 0;
+  if (activeCoupon) {
+    if (activeCoupon.discount_type === 'percent') {
+      discountAmount = (subtotal * activeCoupon.discount_value) / 100;
+      if (activeCoupon.max_discount && discountAmount > activeCoupon.max_discount) {
+        discountAmount = activeCoupon.max_discount;
+      }
+    } else if (activeCoupon.discount_type === 'fixed') {
+      discountAmount = activeCoupon.discount_value;
+    }
+    if (discountAmount > subtotal) {
+      discountAmount = subtotal;
+    }
+  }
+
+  // Kalkulasi Total Akhir
+  const total = (subtotal - discountAmount) + ongkir;
+
+  // Fungsi untuk mengecek kupon ke Backend
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setIsCheckingCoupon(true);
+    setCouponMessage({ text: "", isError: false });
+
+    try {
+      const res = await axiosInstance.post("/promotions/check", {
+        code: couponCode,
+        total_amount: subtotal
+      });
+
+      if (res.data.success) {
+        setActiveCoupon(res.data.data);
+        setCouponMessage({ text: "Kupon berhasil digunakan!", isError: false });
+      } else {
+        setActiveCoupon(null);
+        setCouponMessage({ text: res.data.message || "Kupon tidak valid.", isError: true });
+      }
+    } catch (err: any) {
+      setActiveCoupon(null);
+      setCouponMessage({ 
+        text: err.response?.data?.message || "Gagal mengecek kupon. Coba lagi.", 
+        isError: true 
+      });
+    } finally {
+      setIsCheckingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setActiveCoupon(null);
+    setCouponCode("");
+    setCouponMessage({ text: "", isError: false });
+  };
 
   useEffect(() => {
     const fetchCheckoutData = async () => {
@@ -81,11 +148,17 @@ export default function CheckoutPage() {
         }
       }
 
-      // 2. Tarik Data Keranjang dari Basis Data (Asynchronous)
+      // 🔥 CEK LINK REFERRAL: Kalau ada di localStorage, jadikan default value
+      const savedAffiliate = localStorage.getItem("kambi_affiliate_ref");
+      if (savedAffiliate) {
+        setAffiliateCode(savedAffiliate);
+      }
+
+      // 2. Tarik Data Keranjang dari Basis Data
       try {
         const items = await getCartDB();
         if (items.length === 0) {
-          router.push("/cart"); // Kalau kosong, balikin ke keranjang
+          router.push("/cart"); 
           return;
         }
         setCartItems(items);
@@ -114,10 +187,9 @@ export default function CheckoutPage() {
     }
 
     const combinedAddress = `${street}, ${district}, ${city}, ${province}, ${postalCode}`;
-    const affiliateCode = localStorage.getItem("kambi_affiliate_ref");
 
     try {
-      // 1. Update user profile dengan nomor telepon dan alamat baru (opsional tapi disarankan)
+      // 1. Update user profile dengan nomor telepon dan alamat baru
       if (user?.id) {
         try {
           await axiosInstance.put(`/users/${user.id}`, {
@@ -127,20 +199,23 @@ export default function CheckoutPage() {
             address: combinedAddress
           });
         } catch (updateErr) {
-          console.error("Gagal sinkronisasi data user saat checkout", updateErr);
+          console.error("Gagal sinkronisasi data user", updateErr);
         }
       }
 
-      // 2. Buat pesanan
+      // 2. Buat pesanan (Kirim State affiliateCode langsung!)
       const response = await axiosInstance.post("/orders", {
         address: combinedAddress,
         payment_method: paymentMethod,
-        total_price: total,
+        total_price: total, 
         items: cartItems, 
-        affiliate_code: affiliateCode, 
+        affiliate_code: affiliateCode, // 👈 KIRIM INPUTAN REFERRAL KE BACKEND
+        promotion_code: activeCoupon ? activeCoupon.code : null, 
+        discount_amount: discountAmount 
       });
 
       if (response.data.success) {
+        // Hapus jejak referral setelah sukses checkout
         localStorage.removeItem("kambi_affiliate_ref");
         window.dispatchEvent(new Event("cartUpdated"));
 
@@ -252,19 +327,11 @@ export default function CheckoutPage() {
                 <Wallet className="text-[#D4A373]"/> Metode Pembayaran
               </h2>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Option 1 */}
+              <div className="grid grid-cols-1 gap-4">
                 <label className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-all ${paymentMethod === 'transfer_bank' ? 'border-[#3A5034] bg-[#3A5034]/5' : 'border-[#EAE6D9] hover:border-[#D4A373]/50'}`}>
                   <input type="radio" name="payment" value="transfer_bank" checked={paymentMethod === 'transfer_bank'} onChange={() => setPaymentMethod('transfer_bank')} className="hidden" />
                   <CreditCard size={28} className={paymentMethod === 'transfer_bank' ? 'text-[#3A5034]' : 'text-[#5A665A]'}/>
-                  <span className={`font-semibold text-sm ${paymentMethod === 'transfer_bank' ? 'text-[#3A5034]' : 'text-[#5A665A]'}`}>Transfer Bank</span>
-                </label>
-
-                {/* Option 2 */}
-                <label className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-all ${paymentMethod === 'cod' ? 'border-[#3A5034] bg-[#3A5034]/5' : 'border-[#EAE6D9] hover:border-[#D4A373]/50'}`}>
-                  <input type="radio" name="payment" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="hidden" />
-                  <Truck size={28} className={paymentMethod === 'cod' ? 'text-[#3A5034]' : 'text-[#5A665A]'}/>
-                  <span className={`font-semibold text-sm ${paymentMethod === 'cod' ? 'text-[#3A5034]' : 'text-[#5A665A]'}`}>Bayar di Tempat (COD)</span>
+                  <span className={`font-semibold text-sm ${paymentMethod === 'transfer_bank' ? 'text-[#3A5034]' : 'text-[#5A665A]'}`}>Transfer Bank Virtual Account</span>
                 </label>
               </div>
             </div>
@@ -281,7 +348,6 @@ export default function CheckoutPage() {
                 {cartItems.map(item => (
                   <div key={item.id} className="flex justify-between items-start gap-4">
                     <div className="flex-1">
-                      {/* 🚩 UBAH MAPPING: Menggunakan struktur item.product */}
                       <p className="text-sm font-semibold text-[#2C352D] line-clamp-1">{item.product?.name}</p>
                       <p className="text-xs text-[#5A665A]">{item.qty} x {formatIDR(item.product?.price || 0)}</p>
                     </div>
@@ -290,12 +356,82 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+              {/* Box Input Kupon Promo */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Ticket size={16} className="text-[#D4A373]" />
+                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest">Punya Kode Kupon?</label>
+                </div>
+                
+                {activeCoupon ? (
+                  <div className="flex items-center justify-between p-3 border border-green-200 bg-green-50 rounded-xl">
+                    <div>
+                      <p className="text-xs font-bold text-green-700">Kode Diterapkan:</p>
+                      <p className="text-sm font-black text-green-600 uppercase">{activeCoupon.code}</p>
+                    </div>
+                    <button type="button" onClick={handleRemoveCoupon} className="text-xs text-red-500 font-bold hover:underline">Hapus</button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={couponCode} 
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())} 
+                      placeholder="Masukkan kode promo" 
+                      className="flex-1 bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-2 text-sm text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none uppercase font-bold"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={handleApplyCoupon}
+                      disabled={isCheckingCoupon || !couponCode}
+                      className="px-4 py-2 bg-[#D4A373] text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-[#c29260] transition-colors"
+                    >
+                      {isCheckingCoupon ? <Loader2 size={16} className="animate-spin" /> : "Pakai"}
+                    </button>
+                  </div>
+                )}
+                
+                {/* Pesan status kupon */}
+                {couponMessage.text && (
+                  <p className={`text-xs font-bold mt-2 ${couponMessage.isError ? 'text-red-500' : 'text-green-600'}`}>
+                    {couponMessage.text}
+                  </p>
+                )}
+              </div>
+
+              {/* 👇 BOX BARU: Input Referral Code 👇 */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users size={16} className="text-[#D4A373]" />
+                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest">Kode Referral (Opsional)</label>
+                </div>
+                <input 
+                  type="text" 
+                  value={affiliateCode} 
+                  onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())} 
+                  placeholder="Kode mitra afiliasi..." 
+                  className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-2 text-sm text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none uppercase font-bold"
+                />
+                <p className="text-[10px] text-[#5A665A] mt-1">
+                  *Mendukung kreator KAMBI favoritmu.
+                </p>
+              </div>
+
               {/* Rincian Harga */}
               <div className="space-y-3 mb-6 text-[#5A665A] font-light text-sm border-t border-[#EAE6D9] pt-4">
                 <div className="flex justify-between">
                   <span>Subtotal Produk</span>
                   <span className="font-medium text-[#2C352D]">{formatIDR(subtotal)}</span>
                 </div>
+                
+                {/* Tampilkan baris diskon hanya jika ada potongan */}
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-green-600 font-medium">
+                    <span>Diskon Promo</span>
+                    <span>- {formatIDR(discountAmount)}</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between">
                   <span>Ongkos Kirim (Flat)</span>
                   <span className="font-medium text-[#2C352D]">{formatIDR(ongkir)}</span>

@@ -45,7 +45,11 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
         
         if (!hasClicked) {
           try {
-            await axiosInstance.post('/affiliate/track', { ref: refCode });
+            // 👇 UPDATE DI SINI: Kirimkan product_id ke backend dalam bentuk Angka (Number)
+            await axiosInstance.post('/affiliate/track', { 
+              ref: refCode,
+              product_id: Number(resolvedParams.id) 
+            });
             sessionStorage.setItem(`clicked_${refCode}_${resolvedParams.id}`, 'true');
           } catch (err) {
             console.error("Gagal merekam klik afiliasi", err);

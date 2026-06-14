@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Receipt, Package, Loader2 } from "lucide-react";
+// 👇 IMPORT TRUCK SUDAH DIKEMBALIKAN 👇
+import { ArrowLeft, MapPin, Receipt, Package, Loader2, Ticket, Truck } from "lucide-react";
 import axiosInstance from "../../../lib/axios";
-import ReviewModal from "../../../components/ReviewModal"; // <-- Import Modal Ulasan
+import ReviewModal from "../../../components/ReviewModal"; 
 
 interface OrderDetail {
   id: string;
@@ -18,6 +19,8 @@ interface OrderDetail {
   address: string;
   customer: string;
   payment_url?: string;
+  discount_amount?: number; 
+  promo_code?: string;      
   items: Array<{ id: number; name: string; qty: number; price: number }>;
   tracking?: {
     waybill_id: string;
@@ -64,7 +67,6 @@ export default function OrderDetailPage() {
   const handleReviewSubmit = async (reviewData: { rating: number; comment: string; images: File[] }) => {
     return new Promise<void>((resolve) => {
       setTimeout(() => {
-        // Nanti ganti console.log ini dengan Axios POST ke backend
         console.log("Mengirim ulasan:", {
           order_id: order?.id,
           product_id: selectedProductToReview?.id,
@@ -184,7 +186,7 @@ export default function OrderDetailPage() {
                     <div className="flex flex-col items-start sm:items-end gap-2 w-full sm:w-auto">
                       <p className="font-bold text-[#3A5034]">{formatIDR(item.qty * item.price)}</p>
                       
-                      {/* 👇 Tombol Review (Hanya muncul jika status completed) 👇 */}
+                      {/* Tombol Review */}
                       {order.status.toLowerCase() === 'completed' && (
                         <button 
                           onClick={() => {
@@ -202,11 +204,16 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {/* Total Pembayaran */}
+            {/* Total Pembayaran & Diskon */}
             <div className="pt-8">
               {(() => {
-                const subtotal = order.items.reduce((acc, item) => acc + (item.price * item.qty), 0);
-                const ongkir = order.total - subtotal;
+                // 👇 PASTIKAN SEMUA DI-CONVERT KE NUMBER DULU 👇
+                const subtotal = order.items.reduce((acc, item) => acc + (Number(item.price) * Number(item.qty)), 0);
+                const discount = Number(order.discount_amount) || 0;
+                const total = Number(order.total) || 0;
+                
+                // Hitung ongkir (Sekarang dijamin aman dari string concatenation)
+                const ongkir = total - subtotal + discount;
 
                 return (
                   <div className="space-y-3 mb-6 border-b border-[#EAE6D9] pb-6">
@@ -214,11 +221,23 @@ export default function OrderDetailPage() {
                       <p>Subtotal Produk</p>
                       <p className="font-semibold text-[#2C352D]">{formatIDR(subtotal)}</p>
                     </div>
+                    
+                    {/* Baris Khusus Diskon */}
+                    {discount > 0 && (
+                      <div className="flex justify-between items-center text-sm text-green-600 bg-green-50 p-2 rounded-lg">
+                        <p className="flex items-center gap-1">
+                          <Ticket size={14}/> Diskon Promo {order.promo_code ? `(${order.promo_code})` : ''}
+                        </p>
+                        <p className="font-bold">- {formatIDR(discount)}</p>
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-center text-sm text-[#5A665A]">
                       <p>Ongkos Kirim</p>
                       <p className="font-semibold text-[#2C352D]">{formatIDR(ongkir)}</p>
                     </div>
-                    <div className="flex justify-between items-center text-sm text-[#5A665A]">
+                    
+                    <div className="flex justify-between items-center text-sm text-[#5A665A] pt-2">
                       <p>Metode Pembayaran</p>
                       <p className="font-semibold text-[#2C352D] uppercase">{order.method.replace('_', ' ')}</p>
                     </div>
