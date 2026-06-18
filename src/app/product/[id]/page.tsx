@@ -33,6 +33,7 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
   const refCode = searchParams.get('ref');
 
   const [qty, setQty] = useState(1);
+  const [isDropshipChecked, setIsDropshipChecked] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,12 +178,38 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
             </div>
 
             {/* Fitur Utama & Info Stok */}
-            <div className="mb-10">
+            <div className="mb-6">
               <div className="flex items-center gap-3 text-[#2C352D]">
                 <CheckCircle2 size={20} className="text-[#D4A373]"/> 
                 <span className="font-medium text-sm text-lg font-bold">Stok: {product.stock} pcs (Tersedia)</span>
               </div>
             </div>
+
+            {product.is_dropship_enabled && (
+              <div className="mb-8 bg-orange-50/50 p-4 rounded-2xl border border-orange-200">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={isDropshipChecked} 
+                    onChange={(e) => {
+                      setIsDropshipChecked(e.target.checked);
+                      if (e.target.checked) {
+                        localStorage.setItem("kambi_is_dropship", "true");
+                      } else {
+                        localStorage.removeItem("kambi_is_dropship");
+                      }
+                    }} 
+                    className="w-5 h-5 accent-[#E65100] rounded cursor-pointer"
+                  />
+                  <span className="font-bold text-[#E65100]">Kirim sebagai Dropshipper</span>
+                </label>
+                {isDropshipChecked && (
+                  <p className="text-xs text-orange-800 mt-2 font-medium">
+                    ✨ Dapatkan diskon khusus dropshipper <strong>{product.dropship_discount_type === 'percent' ? `${product.dropship_discount_value}%` : formatIDR(product.dropship_discount_value)}</strong> dengan minimal pembelian {product.dropship_min_qty} pcs!
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Action Area (Add to Cart) */}
             <div className="bg-white p-6 rounded-3xl border border-[#EAE6D9] shadow-sm">

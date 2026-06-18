@@ -22,6 +22,10 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // State Dropship
+  const [isDropship, setIsDropship] = useState(false);
+  const [dropshipperName, setDropshipperName] = useState("");
+
   // State Affiliate
   const [affiliateCodeInput, setAffiliateCodeInput] = useState("");
   const [isAffiliateValid, setIsAffiliateValid] = useState(false);
@@ -35,14 +39,73 @@ export default function CheckoutPage() {
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
+  // State Ongkir Real-time
+  const [shippingFee, setShippingFee] = useState(0);
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [shippingNote, setShippingData] = useState("");
+  const [shippingEtd, setShippingEtd] = useState("");
+
   // Kalkulasi Harga (Diselaraskan dengan struktur item.product)
   const subtotal = cartItems.reduce((acc, item) => {
-    const price = item.product ? Number(item.product.price) : 0;
+    let price = item.product ? Number(item.product.price) : 0;
+    
+    // Potong Diskon Dropship (Tampilan Frontend)
+    if (isDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1)) {
+      if (item.product?.dropship_discount_type === 'percent') {
+        price -= (price * ((item.product?.dropship_discount_value || 0) / 100));
+      } else if (item.product?.dropship_discount_type === 'fixed') {
+        price -= (item.product?.dropship_discount_value || 0);
+      }
+      price = Math.max(0, price);
+    }
+    
     return acc + (price * item.qty);
   }, 0);
   
-  const ongkir = 25000; // Contoh ongkir flat
-  const total = subtotal + ongkir;
+  const total = subtotal + shippingFee;
+
+  const fetchShippingRate = async () => {
+    if (!postalCode || !city || !province || cartItems.length === 0) return;
+    
+    setIsCalculatingShipping(true);
+    try {
+      const res = await axiosInstance.post('/shipping/rate', {
+        postal_code: postalCode,
+        city: city,
+        province: province,
+        items: cartItems.map(item => ({
+          product_id: item.product_id,
+          qty: item.qty
+        }))
+      });
+
+      if (res.data.success) {
+        setShippingFee(res.data.data.price);
+        setShippingData(res.data.data.note || "");
+        setShippingEtd(res.data.data.estimated_days || "");
+        if (res.data.data.note) {
+           toast.success("Ongkir berhasil diupdate (Estimasi)");
+        }
+      }
+    } catch (err) {
+      console.error("Gagal mengambil ongkir", err);
+      setShippingFee(25000); // Fallback
+      setShippingData("Flat Rate");
+      setShippingEtd("2-3 Hari");
+    } finally {
+      setIsCalculatingShipping(false);
+    }
+  };
+
+  // Trigger hitung ongkir saat alamat lengkap
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (postalCode.length >= 5 && city && province) {
+        fetchShippingRate();
+      }
+    }, 1000); // Debounce 1 detik
+    return () => clearTimeout(timer);
+  }, [postalCode, city, province, cartItems]);
 
   useEffect(() => {
     const fetchCheckoutData = async () => {
@@ -87,6 +150,19 @@ export default function CheckoutPage() {
         }
       }
 
+      // Cek apakah ada request dropship dari halaman produk
+      const dropshipIntent = localStorage.getItem("kambi_is_dropship");
+      if (dropshipIntent === "true") {
+        setIsDropship(true);
+      }
+
+      // Cek apakah ada kode afiliasi tersimpan
+      const savedRef = localStorage.getItem("kambi_affiliate_ref");
+      if (savedRef) {
+        setAffiliateCodeInput(savedRef);
+        // Bisa trigger validate di sini otomatis jika mau
+      }
+
       // 2. Tarik Data Keranjang dari Basis Data (Asynchronous)
       try {
         const items = await getCartDB();
@@ -109,6 +185,26 @@ export default function CheckoutPage() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
   };
 
+  const handleCheckAffiliate = async () => {
+    if (!affiliateCodeInput) return;
+    setIsCheckingAffiliate(true);
+    try {
+      const res = await axiosInstance.post('/affiliate/validate-code', { code: affiliateCodeInput });
+      if (res.data.success) {
+        setIsAffiliateValid(true);
+        toast.success(res.data.message);
+      } else {
+        setIsAffiliateValid(false);
+        toast.error(res.data.message);
+      }
+    } catch (err: any) {
+      setIsAffiliateValid(false);
+      toast.error(err.response?.data?.message || "Terjadi kesalahan sistem");
+    } finally {
+      setIsCheckingAffiliate(false);
+    }
+  };
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
@@ -119,8 +215,14 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (isDropship && !dropshipperName.trim()) {
+      toast.error("Nama Toko Dropshipper wajib diisi.");
+      setIsProcessing(false);
+      return;
+    }
+
     const combinedAddress = `${street}, ${district}, ${city}, ${province}, ${postalCode}`;
-    const affiliateCode = localStorage.getItem("kambi_affiliate_ref");
+    const affiliateCodeToUse = isAffiliateValid ? affiliateCodeInput : null;
 
     try {
       // 1. Update user profile dengan nomor telepon dan alamat baru (opsional tapi disarankan)
@@ -143,11 +245,14 @@ export default function CheckoutPage() {
         payment_method: paymentMethod,
         total_price: total,
         items: cartItems, 
-        affiliate_code: affiliateCode, 
+        affiliate_code: affiliateCodeToUse,
+        is_dropship: isDropship,
+        dropshipper_name: dropshipperName
       });
 
       if (response.data.success) {
         localStorage.removeItem("kambi_affiliate_ref");
+        localStorage.removeItem("kambi_is_dropship");
         window.dispatchEvent(new Event("cartUpdated"));
 
         if (response.data.payment_url) {
@@ -249,6 +354,23 @@ export default function CheckoutPage() {
                     <input required type="number" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Contoh: 12160" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1" />
                   </div>
                 </div>
+
+                {isDropship && (
+                  <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                    <label className="text-xs font-bold text-orange-800 uppercase tracking-widest pl-1 flex items-center gap-2 mb-2">
+                      <Truck size={14} /> Nama Toko Pengirim (Dropshipper)
+                    </label>
+                    <input 
+                      required 
+                      type="text" 
+                      value={dropshipperName} 
+                      onChange={(e) => setDropshipperName(e.target.value)} 
+                      placeholder="Masukkan nama toko Anda..." 
+                      className="w-full bg-white border border-orange-200 rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-orange-500/50 outline-none transition-all" 
+                    />
+                    <p className="text-xs text-orange-600 mt-2 font-medium">✨ Karena Anda membeli sebagai dropshipper, paket akan dikirim menggunakan nama toko ini.</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -303,16 +425,31 @@ export default function CheckoutPage() {
               
               {/* List Item Kecil */}
               <div className="space-y-4 mb-6 max-h-48 overflow-y-auto pr-2">
-                {cartItems.map(item => (
-                  <div key={item.id} className="flex justify-between items-start gap-4">
-                    <div className="flex-1">
-                      {/* 🚩 UBAH MAPPING: Menggunakan struktur item.product */}
-                      <p className="text-sm font-semibold text-[#2C352D] line-clamp-1">{item.product?.name}</p>
-                      <p className="text-xs text-[#5A665A]">{item.qty} x {formatIDR(item.product?.price || 0)}</p>
+                {cartItems.map(item => {
+                  let displayPrice = item.product ? Number(item.product.price) : 0;
+                  const isItemDropshipValid = isDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1);
+                  
+                  if (isItemDropshipValid) {
+                    if (item.product?.dropship_discount_type === 'percent') {
+                      displayPrice -= (displayPrice * ((item.product?.dropship_discount_value || 0) / 100));
+                    } else if (item.product?.dropship_discount_type === 'fixed') {
+                      displayPrice -= (item.product?.dropship_discount_value || 0);
+                    }
+                  }
+
+                  return (
+                    <div key={item.id} className="flex justify-between items-start gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-[#2C352D] line-clamp-1">{item.product?.name}</p>
+                        <p className="text-xs text-[#5A665A]">
+                          {item.qty} x {formatIDR(displayPrice)}
+                          {isItemDropshipValid && <span className="ml-1 text-[10px] text-orange-600 font-bold">(Dropship)</span>}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold text-[#3A5034]">{formatIDR(displayPrice * item.qty)}</p>
                     </div>
-                    <p className="text-sm font-bold text-[#3A5034]">{formatIDR((item.product?.price || 0) * item.qty)}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Rincian Harga */}
@@ -321,9 +458,22 @@ export default function CheckoutPage() {
                   <span>Subtotal Produk</span>
                   <span className="font-medium text-[#2C352D]">{formatIDR(subtotal)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Ongkos Kirim (Flat)</span>
-                  <span className="font-medium text-[#2C352D]">{formatIDR(ongkir)}</span>
+                
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center">
+                    <span>Ongkos Kirim</span>
+                    {isCalculatingShipping ? (
+                      <Loader2 size={14} className="animate-spin text-[#D4A373]" />
+                    ) : (
+                      <span className="font-medium text-[#2C352D]">{formatIDR(shippingFee)}</span>
+                    )}
+                  </div>
+                  {shippingNote && !isCalculatingShipping && (
+                    <div className="flex justify-between items-center text-[11px] text-[#D4A373] font-medium">
+                      <span>Ekspedisi: {shippingNote}</span>
+                      {shippingEtd && <span>Estimasi: {shippingEtd}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
 
