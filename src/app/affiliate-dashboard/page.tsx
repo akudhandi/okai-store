@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { 
   Wallet, Package, ArrowRightLeft, Copy, CheckCircle2, 
-  TrendingUp, Link as LinkIcon, ChevronRight, Loader2, Plus, Trash2, Store
+  TrendingUp, Link as LinkIcon, Loader2, Plus, Trash2, Store, Activity
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, Tooltip, ResponsiveContainer,
@@ -18,16 +18,14 @@ export default function AffiliateDashboard() {
   const [affiliateData, setAffiliateData] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<number | string | null>(null);
   
-  // STATE UNTUK ETALASE (Sekarang akan membaca dari localStorage)
   const [myShowcase, setMyShowcase] = useState<any[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawMethod, setWithdrawMethod] = useState("");
   const [withdrawAccount, setWithdrawAccount] = useState("");
 
   const handleWithdraw = async (e: any) => {
-    e.preventDefault(); // Mencegah halaman ke-refresh
+    e.preventDefault(); 
 
-    // Validasi sederhana
     if (Number(withdrawAmount) < 50000) {
       alert("Minimal penarikan adalah Rp 50.000");
       return;
@@ -46,13 +44,9 @@ export default function AffiliateDashboard() {
 
       if (response.data.success) {
         alert("Mantap! Permintaan penarikan berhasil dikirim ke Admin.");
-        // Kosongkan form setelah sukses
         setWithdrawAmount("");
         setWithdrawMethod("");
         setWithdrawAccount("");
-        
-        // (Opsional) Kamu bisa panggil fungsi fetchData() lagi di sini 
-        // untuk mengupdate angka saldo tersedia secara otomatis
       }
     } catch (error: any) {
       alert(error.response?.data?.message || "Gagal mengajukan penarikan. Silakan coba lagi.");
@@ -60,10 +54,11 @@ export default function AffiliateDashboard() {
   };
 
   useEffect(() => {
-    // 1. Ambil data Etalase dari localStorage saat pertama kali halaman dimuat
+    let parsedShowcase: any[] = [];
     const savedShowcase = localStorage.getItem("kambi_affiliate_showcase");
     if (savedShowcase) {
-      setMyShowcase(JSON.parse(savedShowcase));
+      parsedShowcase = JSON.parse(savedShowcase);
+      setMyShowcase(parsedShowcase);
     }
 
     const fetchData = async () => {
@@ -76,7 +71,21 @@ export default function AffiliateDashboard() {
 
         const productsRes = await api.get("/affiliate/available-products");
         if (productsRes.data.success) {
-          setProducts(productsRes.data.data);
+          const freshProducts = productsRes.data.data;
+          setProducts(freshProducts);
+
+          // 🔥 SINKRONISASI ETALASE DENGAN DATA DATABASE TERBARU 🔥
+          if (parsedShowcase.length > 0) {
+            const syncedShowcase = parsedShowcase.map((savedItem: any) => {
+              // Cari produk dengan ID yang sama di data terbaru dari server
+              const freshProduct = freshProducts.find((p: any) => p.id === savedItem.id);
+              // Jika ketemu, pakai data terbaru (harga & komisi baru). Jika tidak, pakai data lama
+              return freshProduct ? freshProduct : savedItem;
+            });
+            
+            setMyShowcase(syncedShowcase);
+            localStorage.setItem("kambi_affiliate_showcase", JSON.stringify(syncedShowcase));
+          }
         }
       } catch (error) {
         console.error("Gagal mengambil data dashboard:", error);
@@ -104,13 +113,10 @@ export default function AffiliateDashboard() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // --- FUNGSI MENGELOLA ETALASE (Disimpan ke LocalStorage) ---
   const addToShowcase = (product: any) => {
     if (!myShowcase.find((p) => p.id === product.id)) {
       const updatedShowcase = [...myShowcase, product];
       setMyShowcase(updatedShowcase);
-      
-      // Simpan ke localStorage agar tidak hilang saat di-refresh
       localStorage.setItem("kambi_affiliate_showcase", JSON.stringify(updatedShowcase));
     }
   };
@@ -118,15 +124,12 @@ export default function AffiliateDashboard() {
   const removeFromShowcase = (productId: number) => {
     const updatedShowcase = myShowcase.filter((p) => p.id !== productId);
     setMyShowcase(updatedShowcase);
-    
-    // Perbarui localStorage setelah produk dihapus
     localStorage.setItem("kambi_affiliate_showcase", JSON.stringify(updatedShowcase));
   };
 
   const isProductInShowcase = (productId: number) => {
     return myShowcase.some((p) => p.id === productId);
   };
-  // -----------------------------------------
 
   if (loading) {
     return (
@@ -167,7 +170,7 @@ export default function AffiliateDashboard() {
           </div>
         </div>
 
-        {/* TAB NAVIGATION BARU */}
+        {/* TAB NAVIGATION */}
         <div className="flex overflow-x-auto hide-scrollbar gap-2 mb-8 bg-white p-2 rounded-2xl border border-[#EAE6D9] shadow-sm">
           <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")} icon={<TrendingUp size={18}/>} label="Ringkasan" />
           <TabButton active={activeTab === "marketplace"} onClick={() => setActiveTab("marketplace")} icon={<Package size={18}/>} label="Bursa Produk" />
@@ -180,6 +183,7 @@ export default function AffiliateDashboard() {
           {/* TAB: OVERVIEW */}
           {activeTab === "overview" && (
             <div className="space-y-8">
+              {/* KARTU STATISTIK ATAS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <StatCard 
                   title="Saldo Tersedia" 
@@ -199,17 +203,16 @@ export default function AffiliateDashboard() {
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* CHART */}
                 <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
                    <h3 className="text-xl font-semibold text-[#2C352D] font-playfair mb-8">Performa 7 Hari Terakhir</h3>
                    <div className="h-[250px] w-full">
                     <ResponsiveContainer width="100%" height={250}>
                       <AreaChart 
                         data={
-                          // Mengecek apakah backend sudah mengirim data grafik mingguan
                           affiliateData?.weekly_chart_data && affiliateData.weekly_chart_data.length > 0 
                             ? affiliateData.weekly_chart_data 
                             : [
-                                // Ini Fallback jika backend belum siap (minimal grafiknya rata dulu, nggak error)
                                 {name: 'H-6', k: 0}, {name: 'H-5', k: 0}, {name: 'H-4', k: 0},
                                 {name: 'H-3', k: 0}, {name: 'H-2', k: 0}, {name: 'H-1', k: 0},
                                 {name: 'Hari Ini', k: affiliateData?.total_commission > 0 ? affiliateData.total_commission : 0}
@@ -233,44 +236,89 @@ export default function AffiliateDashboard() {
                     </ResponsiveContainer>
                    </div>
                 </div>
+
                 {/* AKTIVITAS TERAKHIR */}
-          <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm flex flex-col h-full">
-            <h3 className="text-xl font-playfair font-semibold text-[#2C352D] mb-6">Aktivitas Terakhir</h3>
-            
-            <div className="flex-1 space-y-4">
-              {affiliateData?.recent_activities && affiliateData.recent_activities.length > 0 ? (
-                affiliateData.recent_activities.map((act: any) => (
-                  <div key={act.id} className="flex items-start justify-between pb-4 border-b border-[#EAE6D9]/50 last:border-0 last:pb-0">
-                    <div className="flex gap-3 items-start">
-                      <div className={`mt-1 p-2 rounded-full ${act.type === 'commission' ? 'bg-[#3A5034]/10 text-[#3A5034]' : 'bg-[#D4A373]/10 text-[#D4A373]'}`}>
-                        {/* Jika komisi icon hijau, jika penarikan icon dompet orange */}
-                        {act.type === 'commission' ? <TrendingUp size={14} /> : <Wallet size={14} />}
+                <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm flex flex-col h-full">
+                  <h3 className="text-xl font-playfair font-semibold text-[#2C352D] mb-6">Aktivitas Terakhir</h3>
+                  <div className="flex-1 space-y-4">
+                    {affiliateData?.recent_activities && affiliateData.recent_activities.length > 0 ? (
+                      affiliateData.recent_activities.map((act: any) => (
+                        <div key={act.id} className="flex items-start justify-between pb-4 border-b border-[#EAE6D9]/50 last:border-0 last:pb-0">
+                          <div className="flex gap-3 items-start">
+                            <div className={`mt-1 p-2 rounded-full ${act.type === 'commission' ? 'bg-[#3A5034]/10 text-[#3A5034]' : 'bg-[#D4A373]/10 text-[#D4A373]'}`}>
+                              {act.type === 'commission' ? <TrendingUp size={14} /> : <Wallet size={14} />}
+                            </div>
+                            <div>
+                              <p className="font-bold text-[#2C352D] text-sm">{act.title}</p>
+                              <p className="text-[11px] text-[#5A665A]">
+                                {new Date(act.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-bold text-sm ${act.type === 'commission' ? 'text-[#3A5034]' : 'text-[#2C352D]'}`}>
+                              {act.type === 'commission' ? '+' : '-'} {formatIDR(act.amount)}
+                            </p>
+                            <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${act.status === 'approved' ? 'text-green-600' : act.status === 'pending' ? 'text-orange-500' : 'text-gray-400'}`}>
+                              {act.status}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-center opacity-50 pt-8">
+                        <p className="text-sm font-medium italic">Belum ada aktivitas transaksi.</p>
                       </div>
-                      <div>
-                        <p className="font-bold text-[#2C352D] text-sm">{act.title}</p>
-                        <p className="text-[11px] text-[#5A665A]">
-                          {new Date(act.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`font-bold text-sm ${act.type === 'commission' ? 'text-[#3A5034]' : 'text-[#2C352D]'}`}>
-                        {act.type === 'commission' ? '+' : '-'} {formatIDR(act.amount)}
-                      </p>
-                      <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${act.status === 'approved' ? 'text-green-600' : act.status === 'pending' ? 'text-orange-500' : 'text-gray-400'}`}>
-                        {act.status}
-                      </p>
-                    </div>
+                    )}
                   </div>
-                ))
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-50 pt-8">
-                  <p className="text-sm font-medium italic">Belum ada aktivitas transaksi.</p>
                 </div>
-              )}
-            </div>
-          </div>
               </div>
+
+              {/* HIT PER PRODUK DENGAN GAMBAR */}
+              <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm mt-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-[#D4A373]/10 rounded-xl text-[#D4A373]">
+                    <Activity size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-[#2C352D] font-playfair">Performa Produk</h3>
+                    <p className="text-xs text-[#5A665A]">Daftar produk yang paling sering diklik oleh audiens Anda</p>
+                  </div>
+                </div>
+                
+                {affiliateData?.product_clicks && affiliateData.product_clicks.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {affiliateData.product_clicks.map((hit: any, idx: number) => (
+                      <div key={idx} className="flex items-center p-4 bg-[#FDFCF8] border border-[#EAE6D9] rounded-2xl hover:border-[#D4A373]/50 transition-all group shadow-sm hover:shadow-md">
+                        <div className="w-8 h-8 rounded-full bg-[#3A5034]/10 text-[#3A5034] font-black flex items-center justify-center text-xs shrink-0 mr-4">
+                          #{idx + 1}
+                        </div>
+                        <div className="w-16 h-16 rounded-xl bg-[#F3EFE4] overflow-hidden shrink-0 mr-4 flex items-center justify-center relative">
+                          {hit.image_url ? (
+                            <img src={hit.image_url} alt={hit.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                          ) : (
+                            <Package size={24} className="text-[#D4A373]/50" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-[#2C352D] text-sm line-clamp-2 mb-2 leading-snug">{hit.name}</p>
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-50 border border-orange-100 rounded-lg">
+                            <LinkIcon size={12} className="text-[#D4A373]" />
+                            <span className="font-black text-[#D4A373] text-[11px] uppercase tracking-widest">{hit.clicks} Klik</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 border-2 border-dashed border-[#EAE6D9] rounded-2xl bg-[#FDFCF8]">
+                    <Package size={40} className="mx-auto text-[#D4A373]/50 mb-3" />
+                    <p className="text-sm font-bold text-[#2C352D] mb-1">Belum Ada Data Klik</p>
+                    <p className="text-xs font-medium text-[#5A665A]">Bagikan link produk dari Etalase Anda untuk mulai melacak performa.</p>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
 
@@ -292,7 +340,9 @@ export default function AffiliateDashboard() {
                           <Package size={48} className="text-[#D4A373]/50" />
                         )}
                         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-[#D4A373] shadow-sm">
-                          Komisi {prod.affiliate_commission || 15}%
+                          {prod.commission_type === 'percent' 
+                            ? `Komisi ${prod.commission_value}%` 
+                            : `Komisi Rp${prod.commission_value}`}
                         </div>
                       </div>
                       <div className="p-6 flex flex-col flex-1">
@@ -344,7 +394,9 @@ export default function AffiliateDashboard() {
                         <Package size={48} className="text-[#D4A373]/50" />
                       )}
                       <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold text-[#D4A373] shadow-sm">
-                        Komisi {prod.affiliate_commission || 15}%
+                          {prod.commission_type === 'percent' 
+                            ? `Komisi ${prod.commission_value}%` 
+                            : `Komisi Rp${prod.commission_value}`}
                       </div>
                     </div>
                     <div className="p-6 flex flex-col flex-1">
