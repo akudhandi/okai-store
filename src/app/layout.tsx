@@ -3,9 +3,11 @@ import { Inter, Playfair_Display } from "next/font/google";
 import { Suspense } from "react";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
-// 👇 Import komponen Navbar yang baru dibuat
-import Navbar from "@/components/Navbar"; 
 
+// 👇 Import komponen Navbar
+import Navbar from "@/components/Navbar"; 
+// 👇 Import komponen ChatWidget yang baru kita buat
+import ChatWidget from "@/components/ChatWidget"; 
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
@@ -32,6 +34,9 @@ export default function RootLayout({
         {children}
         
         {/* Kalau ada Footer, biarkan di bawah sini */}
+        
+        {/* 👇 Panggil ChatWidget di sini agar mengambang di semua halaman */}
+        <ChatWidget />
       </body>
     </html>
   );
