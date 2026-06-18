@@ -7,12 +7,15 @@ export interface CartItem {
   product_id: number; // ID dari tabel products
   qty: number;
   product: {          // Data produk hasil JOIN / Eloquent relasi dari backend
-    
     name: string;
     price: number;
     image_url: string | null;
     category: string;
     id: number;
+    is_dropship_enabled?: boolean;
+    dropship_min_qty?: number;
+    dropship_discount_type?: string;
+    dropship_discount_value?: number;
   };
 }
 

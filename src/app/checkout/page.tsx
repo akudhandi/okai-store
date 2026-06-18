@@ -482,7 +482,7 @@ export default function CheckoutPage() {
                 />
                 <button
                   type="button"
-                  onClick={isAffiliateValid ? () => { setAffiliateCodeInput(""); setIsAffiliateValid(false); } : handleCheckAffiliate}
+                  onClick={isAffiliateValid ? () => { setAffiliateCodeInput(""); setIsAffiliateValid(false); } : () => handleCheckAffiliate()}
                   disabled={!affiliateCodeInput || isCheckingAffiliate}
                   className={`px-4 py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50 ${isAffiliateValid ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-[#F3EFE4] text-[#3A5034] hover:bg-[#EAE6D9]"}`}
                 >

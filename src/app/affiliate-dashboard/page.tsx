@@ -25,6 +25,12 @@ export default function AffiliateDashboard() {
   const [withdrawMethod, setWithdrawMethod] = useState("");
   const [withdrawAccount, setWithdrawAccount] = useState("");
 
+  // STATE UNTUK REKENING UTAMA
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountHolderName, setAccountHolderName] = useState("");
+  const [savingBank, setSavingBank] = useState(false);
+
   const handleWithdraw = async (e: any) => {
     e.preventDefault(); // Mencegah halaman ke-refresh
 
@@ -59,6 +65,46 @@ export default function AffiliateDashboard() {
       toast.error(error.response?.data?.message || "Gagal mengajukan penarikan. Silakan coba lagi.");
     }
   };
+
+  const handleSaveBankInfo = async (e: any) => {
+    e.preventDefault();
+    if (!bankName.trim() || !accountNumber.trim() || !accountHolderName.trim()) {
+      toast.error("Harap isi semua informasi rekening bank!");
+      return;
+    }
+    try {
+      setSavingBank(true);
+      const response = await api.post("/user/affiliate-bank", {
+        bank_name: bankName,
+        account_number: accountNumber,
+        account_holder_name: accountHolderName
+      });
+      if (response.data.success) {
+        toast.success("Informasi rekening bank berhasil disimpan!");
+        setAffiliateData(response.data.data);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Gagal menyimpan informasi rekening.");
+    } finally {
+      setSavingBank(false);
+    }
+  };
+
+  useEffect(() => {
+    if (affiliateData) {
+      setBankName(affiliateData.bank_name || "");
+      setAccountNumber(affiliateData.account_number || "");
+      setAccountHolderName(affiliateData.account_holder_name || "");
+      
+      // Auto fill withdrawal method & account
+      if (affiliateData.bank_name && !withdrawMethod) {
+        setWithdrawMethod(affiliateData.bank_name);
+      }
+      if (affiliateData.account_number && !withdrawAccount) {
+        setWithdrawAccount(affiliateData.account_number);
+      }
+    }
+  }, [affiliateData]);
 
   useEffect(() => {
     // 1. Ambil data Etalase dari localStorage saat pertama kali halaman dimuat
@@ -385,40 +431,89 @@ export default function AffiliateDashboard() {
 
         {/* TAB: WITHDRAW */}
           {activeTab === "withdraw" && (
-            <div className="max-w-2xl mx-auto py-8">
-              <div className="bg-white p-8 md:p-10 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
-                <div className="text-center mb-10">
-                  <div className="w-20 h-20 bg-[#D4A373]/10 text-[#D4A373] rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Wallet size={40} />
+            <div className="max-w-5xl mx-auto py-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+              
+              {/* KARTU 1: REKENING BANK UTAMA */}
+              <div className="bg-white p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm h-fit">
+                <h3 className="text-xl font-playfair font-semibold text-[#2C352D] mb-2">Rekening Bank Utama</h3>
+                <p className="text-xs text-[#5A665A] mb-6">
+                  Lengkapi data rekening bank Anda untuk menerima pembayaran komisi. Informasi ini wajib diisi sebelum pencairan dapat ditandai lunas oleh Admin.
+                </p>
+                <form onSubmit={handleSaveBankInfo} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-1.5">Nama Bank</label>
+                    <input 
+                      type="text" 
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="Contoh: Bank BCA, Bank Mandiri"
+                      className="w-full px-4 py-3 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all text-sm font-medium"
+                    />
                   </div>
-                  <h3 className="text-2xl font-playfair font-semibold text-[#2C352D] mb-2">Tarik Komisi</h3>
-                  <p className="text-[#5A665A]">
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-1.5">Nomor Rekening</label>
+                    <input 
+                      type="text" 
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      placeholder="Masukkan nomor rekening Anda"
+                      className="w-full px-4 py-3 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all text-sm font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-1.5">Nama Pemilik Rekening</label>
+                    <input 
+                      type="text" 
+                      value={accountHolderName}
+                      onChange={(e) => setAccountHolderName(e.target.value)}
+                      placeholder="Nama sesuai buku tabungan"
+                      className="w-full px-4 py-3 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all text-sm font-medium"
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={savingBank}
+                    className="w-full py-3 bg-[#D4A373] text-white rounded-xl font-bold hover:bg-[#b0865c] transition-all shadow-md text-xs uppercase"
+                  >
+                    {savingBank ? 'Menyimpan...' : 'Simpan Rekening Utama'}
+                  </button>
+                </form>
+              </div>
+
+              {/* KARTU 2: AJUKAN PENARIKAN */}
+              <div className="bg-white p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm h-fit">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-[#D4A373]/10 text-[#D4A373] rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Wallet size={32} />
+                  </div>
+                  <h3 className="text-xl font-playfair font-semibold text-[#2C352D] mb-1">Tarik Komisi</h3>
+                  <p className="text-xs text-[#5A665A]">
                     Saldo yang bisa ditarik: <span className="font-bold text-[#3A5034]">{formatIDR(affiliateData?.available_balance || 0)}</span>
                   </p>
                 </div>
 
-                <form onSubmit={handleWithdraw} className="space-y-6">
+                <form onSubmit={handleWithdraw} className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-2">Nominal Penarikan</label>
+                    <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-1.5">Nominal Penarikan</label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A] font-bold">Rp</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A] font-bold text-sm">Rp</span>
                       <input 
                         type="number" 
                         value={withdrawAmount}
                         onChange={(e) => setWithdrawAmount(e.target.value)}
                         placeholder="Min. 50.000"
-                        className="w-full pl-12 pr-4 py-4 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] focus:ring-1 focus:ring-[#D4A373] transition-all font-medium"
+                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all text-sm font-medium"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-2">Metode / Bank</label>
+                      <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-1.5">Metode / Bank</label>
                       <select 
                         value={withdrawMethod}
                         onChange={(e) => setWithdrawMethod(e.target.value)}
-                        className="w-full px-4 py-4 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all font-medium"
+                        className="w-full px-4 py-3 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all text-sm font-medium"
                       >
                         <option value="">Pilih Tujuan...</option>
                         <option value="BCA">Transfer BCA</option>
@@ -428,25 +523,26 @@ export default function AffiliateDashboard() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-2">No. Rekening / HP</label>
+                      <label className="block text-[10px] font-bold text-[#5A665A] uppercase tracking-widest mb-1.5">No. Rekening / HP</label>
                       <input 
                         type="text" 
                         value={withdrawAccount}
                         onChange={(e) => setWithdrawAccount(e.target.value)}
                         placeholder="Contoh: 08123456789"
-                        className="w-full px-4 py-4 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all font-medium"
+                        className="w-full px-4 py-3 rounded-xl border border-[#EAE6D9] bg-[#FDFCF8] focus:outline-none focus:border-[#D4A373] transition-all text-sm font-medium"
                       />
                     </div>
                   </div>
 
                   <button 
                     type="submit"
-                    className="w-full py-4 mt-4 bg-[#3A5034] text-white rounded-xl font-bold hover:bg-[#2C352D] transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                    className="w-full py-3 mt-4 bg-[#3A5034] text-white rounded-xl font-bold hover:bg-[#2C352D] transition-all shadow-md text-xs uppercase"
                   >
                     Ajukan Penarikan Sekarang
                   </button>
                 </form>
               </div>
+
             </div>
           )}
 

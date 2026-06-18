@@ -21,6 +21,10 @@ interface Product {
   stock: number;
   warehouse: string;
   image_url: string | null;
+  is_dropship_enabled?: boolean;
+  dropship_discount_type?: string;
+  dropship_discount_value?: number;
+  dropship_min_qty?: number;
 }
 
 // 2. SESUAIKAN TIPE DATA PARAMS MENJADI PROMISE
