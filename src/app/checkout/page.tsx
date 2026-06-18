@@ -3,11 +3,19 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, CheckCircle2, Ticket } from "lucide-react";
 // 🚩 UBAH IMPORT: Gunakan getCartDB dari sistem baru
 import { getCartDB, CartItem } from "../../lib/cart";
 import axiosInstance from "../../lib/axios";
 import toast from 'react-hot-toast';
+
+const formatIDR = (val: number) => {
+  return new Intl.NumberFormat('id-ID', { 
+    style: 'currency', 
+    currency: 'IDR', 
+    minimumFractionDigits: 0 
+  }).format(val);
+};
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -45,6 +53,12 @@ export default function CheckoutPage() {
   const [shippingNote, setShippingData] = useState("");
   const [shippingEtd, setShippingEtd] = useState("");
 
+  // State Kupon / Promo
+  const [couponCode, setCouponCode] = useState("");
+  const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
+  const [activeCoupon, setActiveCoupon] = useState<any>(null);
+  const [couponMessage, setCouponMessage] = useState({ text: "", isError: false });
+
   // Kalkulasi Harga (Diselaraskan dengan struktur item.product)
   const subtotal = cartItems.reduce((acc, item) => {
     let price = item.product ? Number(item.product.price) : 0;
@@ -62,7 +76,61 @@ export default function CheckoutPage() {
     return acc + (price * item.qty);
   }, 0);
   
-  const total = subtotal + shippingFee;
+  // Kalkulasi Diskon Berdasarkan Kupon Aktif
+  let discountAmount = 0;
+  if (activeCoupon) {
+    if (activeCoupon.discount_type === 'percent') {
+      discountAmount = (subtotal * activeCoupon.discount_value) / 100;
+      if (activeCoupon.max_discount && discountAmount > activeCoupon.max_discount) {
+        discountAmount = activeCoupon.max_discount;
+      }
+    } else if (activeCoupon.discount_type === 'fixed') {
+      discountAmount = activeCoupon.discount_value;
+    }
+    if (discountAmount > subtotal) {
+      discountAmount = subtotal;
+    }
+  }
+
+  const total = (subtotal - discountAmount) + shippingFee;
+
+  // Fungsi untuk mengecek kupon ke Backend
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setIsCheckingCoupon(true);
+    setCouponMessage({ text: "", isError: false });
+
+    try {
+      const res = await axiosInstance.post("/promotions/check", {
+        code: couponCode,
+        total_amount: subtotal
+      });
+
+      if (res.data.success) {
+        setActiveCoupon(res.data.data);
+        setCouponMessage({ text: "Kupon berhasil digunakan!", isError: false });
+        toast.success(`Kupon valid! Diskon ${res.data.data.discount_type === 'percent' ? res.data.data.discount_value + '%' : formatIDR(res.data.data.discount_value)} diterapkan.`);
+      } else {
+        setActiveCoupon(null);
+        setCouponMessage({ text: res.data.message || "Kupon tidak valid.", isError: true });   
+        toast.error(res.data.message || "Kupon tidak valid.");
+      }
+    } catch (err: any) {
+      setActiveCoupon(null);
+      const errMsg = err.response?.data?.message || "Gagal mengecek kupon. Coba lagi.";
+      setCouponMessage({ text: errMsg, isError: true });
+      toast.error(errMsg);
+    } finally {
+      setIsCheckingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setActiveCoupon(null);
+    setCouponCode("");
+    setCouponMessage({ text: "", isError: false });
+    toast.success("Kupon berhasil dihapus.");
+  };
 
   const fetchShippingRate = async () => {
     if (!postalCode || !city || !province || cartItems.length === 0) return;
@@ -106,6 +174,32 @@ export default function CheckoutPage() {
     }, 1000); // Debounce 1 detik
     return () => clearTimeout(timer);
   }, [postalCode, city, province, cartItems]);
+
+  const handleCheckAffiliate = async (codeOverride?: string) => {
+    // Pastikan code adalah string, hindari React Event object jika dipanggil dari onClick tanpa wrapper
+    const code = (typeof codeOverride === 'string') ? codeOverride : affiliateCodeInput;
+    
+    if (!code || typeof code !== 'string') return;
+    
+    setIsCheckingAffiliate(true);
+    try {
+      const res = await axiosInstance.post('/affiliate/validate-code', { code: code });
+      if (res.data.success) {
+        setIsAffiliateValid(true);
+        if (typeof codeOverride === 'string') setAffiliateCodeInput(codeOverride);
+        toast.success(res.data.message);
+      } else {
+        setIsAffiliateValid(false);
+        toast.error(res.data.message);
+      }
+    } catch (err: any) {
+      console.error("Affiliate Validation Error:", err);
+      setIsAffiliateValid(false);
+      toast.error(err.response?.data?.message || "Terjadi kesalahan sistem");
+    } finally {
+      setIsCheckingAffiliate(false);
+    }
+  };
 
   useEffect(() => {
     const fetchCheckoutData = async () => {
@@ -159,8 +253,7 @@ export default function CheckoutPage() {
       // Cek apakah ada kode afiliasi tersimpan
       const savedRef = localStorage.getItem("kambi_affiliate_ref");
       if (savedRef) {
-        setAffiliateCodeInput(savedRef);
-        // Bisa trigger validate di sini otomatis jika mau
+        handleCheckAffiliate(savedRef);
       }
 
       // 2. Tarik Data Keranjang dari Basis Data (Asynchronous)
@@ -180,30 +273,6 @@ export default function CheckoutPage() {
 
     fetchCheckoutData();
   }, [router]);
-
-  const formatIDR = (val: number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
-  };
-
-  const handleCheckAffiliate = async () => {
-    if (!affiliateCodeInput) return;
-    setIsCheckingAffiliate(true);
-    try {
-      const res = await axiosInstance.post('/affiliate/validate-code', { code: affiliateCodeInput });
-      if (res.data.success) {
-        setIsAffiliateValid(true);
-        toast.success(res.data.message);
-      } else {
-        setIsAffiliateValid(false);
-        toast.error(res.data.message);
-      }
-    } catch (err: any) {
-      setIsAffiliateValid(false);
-      toast.error(err.response?.data?.message || "Terjadi kesalahan sistem");
-    } finally {
-      setIsCheckingAffiliate(false);
-    }
-  };
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,7 +316,9 @@ export default function CheckoutPage() {
         items: cartItems, 
         affiliate_code: affiliateCodeToUse,
         is_dropship: isDropship,
-        dropshipper_name: dropshipperName
+        dropshipper_name: dropshipperName,
+        promotion_code: activeCoupon ? activeCoupon.code : null, 
+        discount_amount: discountAmount 
       });
 
       if (response.data.success) {
@@ -452,6 +523,42 @@ export default function CheckoutPage() {
                 })}
               </div>
 
+              {/* Box Input Kupon Promo */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Ticket size={16} className="text-[#D4A373]" />
+                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest">Punya Kode Kupon?</label>
+                </div>
+
+                {activeCoupon ? (
+                  <div className="flex items-center justify-between p-3 border border-green-200 bg-green-50 rounded-xl transition-all">
+                    <div>
+                      <p className="text-[10px] font-bold text-green-700 uppercase tracking-widest">Kupon Dipakai:</p>
+                      <p className="text-sm font-black text-green-600 uppercase">{activeCoupon.code}</p>
+                    </div>
+                    <button type="button" onClick={handleRemoveCoupon} className="text-xs text-red-500 font-bold hover:underline">Hapus</button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={couponCode} 
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())} 
+                      placeholder="Masukkan kode promo" 
+                      className="flex-1 bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-2 text-sm text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none uppercase font-bold transition-all"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={handleApplyCoupon}
+                      disabled={isCheckingCoupon || !couponCode}
+                      className="px-4 py-2 bg-[#D4A373] text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-[#c29260] transition-colors"
+                    >
+                      {isCheckingCoupon ? <Loader2 size={16} className="animate-spin" /> : "Pakai"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Rincian Harga */}
               <div className="space-y-3 mb-6 text-[#5A665A] font-light text-sm border-t border-[#EAE6D9] pt-4">
                 <div className="flex justify-between">
@@ -475,6 +582,13 @@ export default function CheckoutPage() {
                     </div>
                   )}
                 </div>
+
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-green-600 font-medium pt-1">
+                    <span>Diskon Promo ({activeCoupon?.code})</span>
+                    <span>- {formatIDR(discountAmount)}</span>
+                  </div>
+                )}
               </div>
 
               {/* Total Akhir */}

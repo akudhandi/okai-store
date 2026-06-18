@@ -14,12 +14,21 @@ interface OrderDetail {
   invoice_no: string;
   status: string;
   date: string;
-  total: number;
-  method: string;
+  total_price: number; // 👈 Gunakan field asli backend
+  total: number;       // Fallback
+  payment_method: string; // 👈 Gunakan field asli backend
+  method: string;      // Fallback
   address: string;
   customer: string;
   payment_url?: string;
-  items: Array<{ id: number; name: string; qty: number; price: number }>;
+  items: Array<{ 
+    id: number; 
+    name: string; 
+    product?: { name: string }; // 👈 Handle nested product
+    quantity: number; // 👈 Gunakan field asli backend
+    qty: number;      // Fallback
+    price: number; 
+  }>;
   tracking?: {
     waybill_id: string;
     status: string;
@@ -31,7 +40,7 @@ interface OrderDetail {
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [order, setOrder] = useState<any | null>(null); // Gunakan any dulu untuk fleksibilitas data backend
   const [isLoading, setIsLoading] = useState(true);
 
   // --- STATE UNTUK REVIEW MODAL ---
@@ -57,8 +66,10 @@ export default function OrderDetailPage() {
     fetchOrderDetail();
   }, [params.id, router]);
 
-  const formatIDR = (val: number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+  const formatIDR = (val: any) => {
+    const number = Number(val);
+    if (isNaN(number)) return "Rp 0";
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number);
   };
 
   // --- FUNGSI SUBMIT ULASAN (Menunggu API Backend) ---
@@ -83,6 +94,11 @@ export default function OrderDetailPage() {
 
   if (!order) return null;
 
+  // Normalisasi data dari backend (karena beda nama field)
+  const orderTotal = Number(order.total_price || order.total || 0);
+  const orderItems = order.items || [];
+  const orderStatus = (order.status || "").toLowerCase();
+
   return (
     <div className="min-h-screen bg-[#FDFCF8] pt-10 pb-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
@@ -98,18 +114,18 @@ export default function OrderDetailPage() {
           <div className="bg-[#3A5034] p-8 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <p className="text-white/70 text-sm font-medium mb-1">Status Pesanan</p>
-              <h2 className="text-2xl font-bold font-playfair uppercase tracking-wider">{order.status}</h2>
+              <h2 className="text-2xl font-bold font-playfair uppercase tracking-wider">{orderStatus}</h2>
             </div>
             <div className="text-left sm:text-right">
               <p className="text-white/70 text-sm font-medium mb-1">Tanggal Pembelian</p>
-              <p className="font-semibold">{order.date}</p>
+              <p className="font-semibold">{order.date || new Date(order.created_at).toLocaleDateString('id-ID')}</p>
             </div>
           </div>
 
           <div className="p-8">
 
             {/* INFO PEMBAYARAN (XENDIT BUTTON) */}
-            {order.status === 'pending' && order.payment_url && (
+            {orderStatus === 'pending' && order.payment_url && (
               <div className="mb-8 p-6 bg-orange-50 border border-orange-100 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div>
                   <p className="text-[#3A5034] font-bold">Menunggu Pembayaran</p>
@@ -166,7 +182,7 @@ export default function OrderDetailPage() {
                   <MapPin size={16} className="text-[#D4A373]"/> Alamat Pengiriman
                 </p>
                 <p className="text-[#2C352D] text-sm leading-relaxed max-w-xs">{order.address}</p>
-                <p className="text-[#5A665A] text-sm mt-1 font-medium">{order.customer}</p>
+                <p className="text-[#5A665A] text-sm mt-1 font-medium">{order.customer || order.user?.name}</p>
               </div>
             </div>
 
@@ -176,38 +192,50 @@ export default function OrderDetailPage() {
                 <Package size={16} className="text-[#D4A373]"/> Rincian Produk
               </p>
               <div className="space-y-6">
-                {order.items.map((item, idx) => (
-                  <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-50 last:border-0 last:pb-0">
-                    <div className="flex-1">
-                      <p className="font-semibold text-[#2C352D]">{item.name}</p>
-                      <p className="text-sm text-[#5A665A] mt-1">{item.qty} x {formatIDR(item.price)}</p>
+                {orderItems.map((item: any, idx: number) => {
+                  const itemQty = Number(item.quantity || item.qty || 0);
+                  const itemPrice = Number(item.price || 0);
+                  const itemName = item.product?.name || item.name || "Produk";
+
+                  return (
+                    <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-50 last:border-0 last:pb-0">
+                      <div className="flex-1">
+                        <p className="font-semibold text-[#2C352D]">{itemName}</p>
+                        <p className="text-sm text-[#5A665A] mt-1">{itemQty} x {formatIDR(itemPrice)}</p>
+                      </div>
+                      <div className="flex flex-col items-start sm:items-end gap-2 w-full sm:w-auto">
+                        <p className="font-bold text-[#3A5034]">{formatIDR(itemQty * itemPrice)}</p>
+                        
+                        {/* ❌ Tombol Review (Hanya muncul jika status delivered) ❌ */}
+                        {(orderStatus === 'delivered' || orderStatus === 'completed') && (
+                          <button 
+                            onClick={() => {
+                              setSelectedProductToReview({ id: item.product_id || item.id, name: itemName });
+                              setIsReviewModalOpen(true);
+                            }}
+                            className="text-xs font-bold bg-orange-50 text-[#E65100] border border-orange-200 px-4 py-2 rounded-xl hover:bg-[#E65100] hover:text-white transition-all shadow-sm w-full sm:w-auto"
+                          >
+                            Nilai Produk
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col items-start sm:items-end gap-2 w-full sm:w-auto">
-                      <p className="font-bold text-[#3A5034]">{formatIDR(item.qty * item.price)}</p>
-                      
-                      {/* 👇 Tombol Review (Hanya muncul jika status completed) 👇 */}
-                      {order.status.toLowerCase() === 'completed' && (
-                        <button 
-                          onClick={() => {
-                            setSelectedProductToReview({ id: item.id, name: item.name });
-                            setIsReviewModalOpen(true);
-                          }}
-                          className="text-xs font-bold bg-orange-50 text-[#E65100] border border-orange-200 px-4 py-2 rounded-xl hover:bg-[#E65100] hover:text-white transition-all shadow-sm w-full sm:w-auto"
-                        >
-                          Nilai Produk
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
             {/* Total Pembayaran */}
             <div className="pt-8">
               {(() => {
-                const subtotal = order.items.reduce((acc, item) => acc + (item.price * item.qty), 0);
-                const ongkir = order.total - subtotal;
+                const subtotal = orderItems.reduce((acc: number, item: any) => {
+                  const q = Number(item.quantity || item.qty || 0);
+                  const p = Number(item.price || 0);
+                  return acc + (p * q);
+                }, 0);
+                const ongkir = Number(order.shipping_cost || 0);
+                const discount = Number(order.discount_amount || 0);
+                const promoCode = order.promotion?.code;
 
                 return (
                   <div className="space-y-3 mb-6 border-b border-[#EAE6D9] pb-6">
@@ -219,9 +247,17 @@ export default function OrderDetailPage() {
                       <p>Ongkos Kirim</p>
                       <p className="font-semibold text-[#2C352D]">{formatIDR(ongkir)}</p>
                     </div>
+                    {discount > 0 && (
+                      <div className="flex justify-between items-center text-sm text-green-600">
+                        <p>Diskon Promo {promoCode && `(${promoCode})`}</p>
+                        <p className="font-semibold">- {formatIDR(discount)}</p>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center text-sm text-[#5A665A]">
                       <p>Metode Pembayaran</p>
-                      <p className="font-semibold text-[#2C352D] uppercase">{order.method.replace('_', ' ')}</p>
+                      <p className="font-semibold text-[#2C352D] uppercase">
+                        {(order.payment_method || order.method || "Transfer Bank").toString().replace('_', ' ')}
+                      </p>
                     </div>
                   </div>
                 );
@@ -229,7 +265,7 @@ export default function OrderDetailPage() {
 
               <div className="flex justify-between items-center p-4 bg-[#FDFCF8] rounded-2xl border border-[#EAE6D9]">
                 <p className="font-bold text-[#2C352D]">Total Pembayaran</p>
-                <p className="text-2xl font-bold text-[#3A5034] tracking-tight">{formatIDR(order.total)}</p>
+                <p className="text-2xl font-bold text-[#3A5034] tracking-tight">{formatIDR(orderTotal)}</p>
               </div>
             </div>
 
