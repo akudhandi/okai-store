@@ -7,11 +7,13 @@ import { User, ShoppingCart, LogOut, ShieldCheck } from "lucide-react";
 import { getCartDB } from "../lib/cart";
 import AffiliateMenu from "./AffiliateMenu";
 import { useSearchParams, usePathname } from "next/navigation";
+import axios from "../lib/axios";
 
 export default function Navbar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState("");
   const [cartCount, setCartCount] = useState(0); 
+  const [isAffiliate, setIsAffiliate] = useState(false);
 
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -26,7 +28,7 @@ export default function Navbar() {
       console.log("Kode Referral tertangkap dari URL:", refCode);
     }
 
-    const checkLoginStatus = () => {
+    const checkLoginStatus = async () => {
       const token = localStorage.getItem("kambi_token");
       const userStr = localStorage.getItem("kambi_user");
       
@@ -38,9 +40,21 @@ export default function Navbar() {
         } catch (e) {
           console.error("Gagal parse nama user");
         }
+
+        try {
+          const res = await axios.get("/user/affiliate-status");
+          if (res.data.success) {
+            const data = res.data.data;
+            setIsAffiliate(data && data.is_affiliate === true && data.status === 'active');
+          }
+        } catch (err) {
+          console.error(err);
+          setIsAffiliate(false);
+        }
       } else {
         setIsLoggedIn(false);
         setUserName("");
+        setIsAffiliate(false);
       }
     };
 
@@ -100,7 +114,11 @@ export default function Navbar() {
               <div className="hidden md:flex items-center gap-8 text-[#5A665A] font-medium text-sm">
                 <Link href="/" className="hover:text-[#D4A373] transition-colors">Beranda</Link>
                 <Link href="/shop" className="hover:text-[#D4A373] transition-colors">Belanja</Link>
-                <Link href="/register-affiliate" className="hover:text-[#D4A373] transition-colors">Affiliate</Link>
+                {isAffiliate ? (
+                  <Link href="/affiliate-dashboard" className="hover:text-[#D4A373] transition-colors font-bold text-[#D4A373]">Dashboard Afiliasi</Link>
+                ) : (
+                  <Link href="/register-affiliate" className="hover:text-[#D4A373] transition-colors">Affiliate</Link>
+                )}
               </div>
 
               {/* BAGIAN KANAN: Ikon Cart & Profil */}

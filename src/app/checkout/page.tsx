@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("transfer_bank");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [createdOrders, setCreatedOrders] = useState<any[]>([]);
 
   // State Dropship
   const [isDropship, setIsDropship] = useState(false);
@@ -326,15 +327,23 @@ export default function CheckoutPage() {
         localStorage.removeItem("kambi_is_dropship");
         window.dispatchEvent(new Event("cartUpdated"));
 
-        if (response.data.payment_url) {
-          window.location.href = response.data.payment_url;
-        } else {
+        const orders = response.data.orders || [];
+        setCreatedOrders(orders);
+
+        if (paymentMethod === 'cod') {
           setIsProcessing(false);
           setIsSuccess(true);
           
           setTimeout(() => {
-            router.push("/");
+            router.push("/orders");
           }, 3000);
+        } else {
+          if (orders.length === 1) {
+            window.location.href = orders[0].payment_url || response.data.payment_url;
+          } else {
+            setIsProcessing(false);
+            setIsSuccess(true);
+          }
         }
       }
     } catch (err) {
@@ -348,19 +357,72 @@ export default function CheckoutPage() {
 
   // LAYAR SUKSES
   if (isSuccess) {
+    const isSplitPayment = paymentMethod !== 'cod' && createdOrders.length > 1;
+
     return (
-      <div className="min-h-screen bg-[#FDFCF8] flex items-center justify-center p-4">
-        <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-[#EAE6D9] text-center max-w-md w-full">
-          <div className="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 size={48} />
+      <div className="min-h-screen bg-[#FDFCF8] flex items-center justify-center p-4 py-12">
+        <div className="bg-white p-8 sm:p-10 rounded-[3rem] shadow-xl border border-[#EAE6D9] text-center max-w-lg w-full">
+          <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 size={40} />
           </div>
-          <h2 className="text-3xl font-bold font-playfair text-[#2C352D] mb-4">Pesanan Berhasil!</h2>
-          <p className="text-[#5A665A] mb-8 leading-relaxed">
-            Terima kasih, <strong>{user?.name}</strong>. Pesanan Anda sedang kami proses. Invoice telah dikirim ke email Anda.
-          </p>
-          <div className="flex items-center justify-center gap-2 text-sm text-[#D4A373] animate-pulse">
-            Mengalihkan ke beranda...
-          </div>
+          <h2 className="text-3xl font-bold font-playfair text-[#2C352D] mb-4">
+            {isSplitPayment ? "Pesanan Terbagi!" : "Pesanan Berhasil!"}
+          </h2>
+          
+          {isSplitPayment ? (
+            <>
+              <p className="text-[#5A665A] mb-6 leading-relaxed text-sm">
+                Terima kasih, <strong>{user?.name}</strong>. Karena produk Anda dikirim dari lokasi gudang yang berbeda, pesanan Anda dipisah menjadi <strong>{createdOrders.length} bagian</strong> dengan pembayaran terpisah. Silakan bayar masing-masing bagian di bawah ini:
+              </p>
+              
+              <div className="space-y-4 mb-8 text-left max-h-[300px] overflow-y-auto pr-1">
+                {createdOrders.map((order, idx) => (
+                  <div key={order.id || idx} className="p-4 bg-[#FDFCF8] border border-[#EAE6D9] rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold text-[#D4A373] uppercase tracking-wider">
+                        Gudang: {order.warehouse?.name || `Gudang #${order.warehouse_id}`}
+                      </p>
+                      <p className="text-xs text-[#5A665A] mt-0.5">{order.invoice_no}</p>
+                      <p className="text-sm font-bold text-[#3A5034] mt-0.5">{formatIDR(order.total_price)}</p>
+                    </div>
+                    {order.payment_url ? (
+                      <a
+                        href={order.payment_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2.5 bg-[#3A5034] hover:bg-[#2C352D] text-white text-xs font-bold rounded-xl text-center shadow-md transition-all whitespace-nowrap"
+                      >
+                        Bayar Sekarang
+                      </a>
+                    ) : (
+                      <span className="text-xs text-green-600 font-bold">Lunas / COD</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              <p className="text-xs text-[#5A665A] mb-8 leading-relaxed">
+                Tautan pembayaran di atas juga dapat Anda akses kapan saja melalui halaman <Link href="/orders" className="text-[#D4A373] hover:underline font-semibold">Riwayat Pesanan</Link>.
+              </p>
+            </>
+          ) : (
+            <p className="text-[#5A665A] mb-8 leading-relaxed">
+              Terima kasih, <strong>{user?.name}</strong>. Pesanan Anda sedang kami proses. Invoice telah dikirim ke email Anda.
+            </p>
+          )}
+
+          {!isSplitPayment ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-[#D4A373] animate-pulse">
+              Mengalihkan ke riwayat pesanan...
+            </div>
+          ) : (
+            <button
+              onClick={() => router.push("/orders")}
+              className="w-full bg-[#D4A373] hover:bg-[#b0865c] text-white py-3.5 rounded-xl font-bold text-sm tracking-wide shadow-md transition-all"
+            >
+              Lihat Riwayat Pesanan
+            </button>
+          )}
         </div>
       </div>
     );

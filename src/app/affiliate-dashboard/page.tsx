@@ -118,7 +118,13 @@ export default function AffiliateDashboard() {
         setLoading(true);
         const statusRes = await api.get("/user/affiliate-status");
         if (statusRes.data.success) {
-          setAffiliateData(statusRes.data.data);
+          const data = statusRes.data.data;
+          if (!data || data.is_affiliate === false || data.status !== 'active') {
+            toast.error("Anda harus terdaftar sebagai mitra afiliasi untuk mengakses halaman ini.");
+            window.location.href = "/register-affiliate";
+            return;
+          }
+          setAffiliateData(data);
         }
 
         const productsRes = await api.get("/affiliate/available-products");

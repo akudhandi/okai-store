@@ -42,6 +42,20 @@ export default function RegisterAffiliate() {
         const userObj = JSON.parse(userStr);
         setUserEmail(userObj.email); 
         setUserId(userObj.id); // Simpan ID user untuk dikirim ke backend
+
+        // Cek status affiliate saat ini
+        axios.get("/user/affiliate-status", {
+          headers: { Authorization: `Bearer ${token}` }
+        }).then(res => {
+          if (res.data.success) {
+            const data = res.data.data;
+            if (data && data.is_affiliate === true && data.status === 'active') {
+              toast.error("Anda sudah terdaftar sebagai mitra afiliasi!");
+              window.location.href = "/affiliate-dashboard";
+            }
+          }
+        }).catch(err => console.error("Gagal mengecek status affiliate:", err));
+
       } catch (e) {
         console.error("Gagal membaca data user");
       }
