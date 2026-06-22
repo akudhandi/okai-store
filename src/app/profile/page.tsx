@@ -142,7 +142,60 @@ export default function ProfilePage() {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen flex justify-center items-center"><Loader2 className="animate-spin text-[#D4A373]" size={40}/></div>;
+    return (
+      <div className="min-h-screen bg-[#FDFCF8] pt-10 pb-24 px-4 sm:px-6 lg:px-8 animate-pulse">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row gap-8">
+          {/* KOLOM KIRI SKELETON */}
+          <div className="w-full md:w-1/3">
+            <div className="bg-white border border-[#EAE6D9] rounded-[2rem] p-8 shadow-sm flex flex-col items-center text-center sticky top-28">
+              <div className="w-24 h-24 bg-gray-200 rounded-full mb-4"></div>
+              <div className="w-32 h-6 bg-gray-200 rounded-lg mb-2"></div>
+              <div className="w-48 h-4 bg-gray-200 rounded-lg mb-4"></div>
+              <div className="w-24 h-6 bg-gray-200 rounded-full mb-6"></div>
+              <div className="w-full h-12 bg-gray-200 rounded-xl mb-6"></div>
+              <div className="w-full h-12 bg-gray-200 rounded-xl"></div>
+            </div>
+          </div>
+
+          {/* KOLOM KANAN SKELETON */}
+          <div className="w-full md:w-2/3">
+            <div className="bg-white border border-[#EAE6D9] rounded-[2rem] p-8 md:p-10 shadow-sm space-y-6">
+              <div className="w-48 h-8 bg-gray-200 rounded-lg mb-2"></div>
+              <div className="w-64 h-4 bg-gray-200 rounded-lg mb-8"></div>
+              
+              <div className="space-y-4">
+                <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+              </div>
+
+              <hr className="border-[#EAE6D9] my-6" />
+              
+              <div className="w-48 h-6 bg-gray-200 rounded-lg mb-4"></div>
+              <div className="space-y-4">
+                <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                  <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                  <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                </div>
+              </div>
+
+              <hr className="border-[#EAE6D9] my-6" />
+
+              <div className="w-full h-14 bg-gray-200 rounded-xl mb-6"></div>
+              
+              <div className="flex justify-end">
+                <div className="w-48 h-14 bg-gray-200 rounded-xl"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -7,11 +7,16 @@ import { Trash2, Minus, Plus, ArrowRight, ShoppingBag, ShieldCheck, Lock, Loader
 // Mengimpor fungsi penanganan keranjang berbasis basis data
 import { getCartDB, updateCartQtyDB, removeFromCartDB, CartItem } from "../../lib/cart"; 
 import toast from 'react-hot-toast';
+import { formatNumber } from "../../lib/numberFormat";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
 };
+
+const Skeleton = ({ className }: { className: string }) => (
+  <div className={`animate-pulse bg-[#EAE6D9]/50 rounded-xl ${className}`} />
+);
 
 export default function CartPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -72,18 +77,69 @@ export default function CartPage() {
     return acc + (price * item.qty);
   }, 0);
 
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FDFCF8]">
-        <Loader2 className="animate-spin text-[#3A5034]" size={48} />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#FDFCF8] pt-12 pb-24 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        {!isLoggedIn ? (
+        {!isLoaded ? (
+          // 1. BASE LOADING LAYOUT (Pulsing Skeletons matching the multi-column cart page)
+          <>
+            <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
+              <h1 className="text-4xl md:text-5xl font-semibold text-[#2C352D] font-playfair tracking-tight mb-2">Keranjang Anda</h1>
+              <p className="text-[#5A665A] text-lg font-light">Pastikan pesanan Anda sudah benar sebelum melanjutkan ke pembayaran.</p>
+            </motion.div>
+            
+            <div className="flex flex-col lg:flex-row gap-10">
+              <div className="flex-1 space-y-6">
+                {[1, 2].map((i) => (
+                  <div key={i} className="bg-white p-4 sm:p-6 rounded-3xl border border-[#EAE6D9] shadow-sm flex flex-col sm:flex-row items-center gap-6">
+                    <Skeleton className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl shrink-0" />
+                    <div className="flex-1 w-full space-y-3">
+                      <Skeleton className="h-3.5 w-16" />
+                      <Skeleton className="h-6 w-3/4 sm:w-1/2" />
+                      <Skeleton className="h-5 w-24" />
+                      <div className="flex justify-between items-center sm:justify-start gap-6">
+                        <Skeleton className="h-10 w-28" />
+                        <Skeleton className="h-6 w-16" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="w-full lg:w-[400px]">
+                <div className="bg-white p-8 rounded-[2.5rem] border border-[#EAE6D9] shadow-sm sticky top-28">
+                  <h3 className="text-2xl font-semibold text-[#2C352D] font-playfair mb-6">Ringkasan Pesanan</h3>
+                  <div className="space-y-4 mb-6 text-[#5A665A] font-light">
+                    <div className="flex justify-between items-center">
+                      <span>Subtotal Produk</span>
+                      <Skeleton className="h-5 w-20" />
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Ongkos Kirim</span>
+                      <span className="text-[#D4A373] italic text-sm">Dihitung di Checkout</span>
+                    </div>
+                  </div>
+                  <div className="border-t border-[#EAE6D9] pt-6 mb-8 flex justify-between items-end">
+                    <span className="text-lg font-medium text-[#2C352D]">Total</span>
+                    <Skeleton className="h-8 w-28" />
+                  </div>
+                  
+                  <button
+                    disabled
+                    className="w-full flex items-center justify-center gap-2 bg-[#3A5034]/70 text-white py-4 rounded-2xl font-bold tracking-wide transition-all"
+                  >
+                    <Loader2 className="animate-spin text-white" size={18} /> Loading...
+                  </button>
+
+                  <div className="mt-6 flex items-center justify-center gap-2 text-sm text-[#5A665A] font-light">
+                    <ShieldCheck size={16} className="text-[#D4A373]" /> Transaksi Aman & Terenkripsi
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : !isLoggedIn ? (
+          // 2. LOCK GATE (Only shown if data loaded and user has no login credentials)
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="bg-white p-8 md:p-12 rounded-[3rem] border border-[#EAE6D9] shadow-xl text-center flex flex-col items-center justify-center min-h-[500px]">
             <div className="w-20 h-20 bg-[#F3EFE4] text-[#D4A373] rounded-full flex items-center justify-center mb-6 shadow-inner">
               <Lock size={32} />
@@ -97,6 +153,7 @@ export default function CartPage() {
             </Link>
           </motion.div>
         ) : (
+          // 3. LOADED CARTS STATE (Shows either item list layout or empty layout)
           <>
             <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
               <h1 className="text-4xl md:text-5xl font-semibold text-[#2C352D] font-playfair tracking-tight mb-2">Keranjang Anda</h1>
@@ -104,6 +161,7 @@ export default function CartPage() {
             </motion.div>
 
             {cartItems.length === 0 ? (
+              // Empty Layout (Only shows if explicitly loaded AND empty)
               <motion.div initial="hidden" animate="visible" variants={fadeUp} className="text-center py-32 bg-white rounded-[3rem] border border-[#EAE6D9] shadow-sm relative">
                 <div className="w-24 h-24 bg-[#F3EFE4] rounded-full flex items-center justify-center mx-auto mb-6 text-[#D4A373]">
                   <ShoppingBag size={40} />
@@ -115,12 +173,12 @@ export default function CartPage() {
                 </Link>
               </motion.div>
             ) : (
+              // Split checkout view with loaded item list
               <div className="flex flex-col lg:flex-row gap-10">
-                <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex-1 space-y-6">
+                <div className="flex-1 space-y-6">
                   {cartItems.map((item) => (
                     <div key={item.id} className="bg-white p-4 sm:p-6 rounded-3xl border border-[#EAE6D9] shadow-sm flex flex-col sm:flex-row items-center gap-6 group hover:shadow-md transition-all">
                       
-                      {/* FIX: Link ke ID produk */}
                       <Link href={`/product/${item.product?.id}`} className="w-24 h-24 sm:w-32 sm:h-32 bg-[#FDFCF8] rounded-2xl flex items-center justify-center border border-[#EAE6D9]/50 overflow-hidden shrink-0">
                         {item.product?.image_url ? (
                            <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -133,7 +191,6 @@ export default function CartPage() {
                         <div className="flex justify-between items-start mb-1">
                           <span className="text-[10px] font-bold text-[#5A665A] uppercase tracking-widest">{item.product?.category || "Produk"}</span>
                         </div>
-                        {/* FIX: Link ke ID produk */}
                         <Link href={`/product/${item.product?.id}`}>
                           <h3 className="text-xl font-semibold text-[#2C352D] font-playfair group-hover:text-[#D4A373] transition-colors mb-2 line-clamp-1">{item.product?.name}</h3>
                         </Link>
@@ -142,7 +199,7 @@ export default function CartPage() {
                         <div className="flex items-center justify-between sm:justify-start gap-6 w-full">
                           <div className="flex items-center bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl p-1">
                             <button onClick={() => updateQty(item.id, item.qty - 1)} className="w-8 h-8 flex items-center justify-center text-[#5A665A] hover:bg-white rounded-lg transition-all"><Minus size={14}/></button>
-                            <span className="w-10 text-center font-bold text-[#2C352D] text-sm">{item.qty}</span>
+                            <span className="w-10 text-center font-bold text-[#2C352D] text-sm">{formatNumber(item.qty)}</span>
                             <button onClick={() => updateQty(item.id, item.qty + 1)} className="w-8 h-8 flex items-center justify-center text-[#5A665A] hover:bg-white rounded-lg transition-all"><Plus size={14}/></button>
                           </div>
                           <button onClick={() => handleRemoveItem(item.id)} className="text-[#5A665A] hover:text-red-500 transition-colors flex items-center gap-1 text-sm font-medium">
@@ -152,13 +209,13 @@ export default function CartPage() {
                       </div>
                     </div>
                   ))}
-                </motion.div>
+                </div>
 
-                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="w-full lg:w-[400px]">
+                <div className="w-full lg:w-[400px]">
                   <div className="bg-white p-8 rounded-[2.5rem] border border-[#EAE6D9] shadow-sm sticky top-28">
                     <h3 className="text-2xl font-semibold text-[#2C352D] font-playfair mb-6">Ringkasan Pesanan</h3>
                     <div className="space-y-4 mb-6 text-[#5A665A] font-light">
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span>Subtotal Produk</span>
                         <span className="font-medium text-[#2C352D]">{formatIDR(subtotal)}</span>
                       </div>
@@ -172,7 +229,6 @@ export default function CartPage() {
                       <span className="text-3xl font-bold text-[#3A5034] tracking-tight">{formatIDR(subtotal)}</span>
                     </div>
 
-                    {/* FIX: Meneruskan kode referral dari cart ke checkout */}
                     <Link 
                       href={refCode ? `/checkout?ref=${refCode}` : "/checkout"} 
                       className="w-full flex items-center justify-center gap-2 bg-[#3A5034] text-white py-4 rounded-2xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300"
@@ -184,7 +240,7 @@ export default function CartPage() {
                       <ShieldCheck size={16} className="text-[#D4A373]" /> Transaksi Aman & Terenkripsi
                     </div>
                   </div>
-                </motion.div>
+                </div>
               </div>
             )}
           </>

@@ -141,7 +141,62 @@ export default function OrdersPage() {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen flex justify-center items-center"><Loader2 className="animate-spin text-[#D4A373]" size={40}/></div>;
+    return (
+      <div className="min-h-screen bg-[#FDFCF8] pt-10 pb-24 px-4 sm:px-6 lg:px-8 animate-pulse">
+        <div className="max-w-4xl mx-auto">
+          
+          <div className="w-32 h-5 bg-gray-200 rounded-lg mb-8"></div>
+          <div className="w-48 h-10 bg-gray-200 rounded-lg mb-8"></div>
+
+          {/* TABS SKELETON */}
+          <div className="flex overflow-x-auto gap-2 pb-4 mb-6 hide-scrollbar">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="w-32 h-10 bg-gray-200 rounded-full shrink-0"></div>
+            ))}
+          </div>
+
+          {/* ORDERS LIST SKELETON */}
+          <div className="space-y-6">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-white rounded-4xl border border-[#EAE6D9] p-6 sm:p-8 shadow-sm">
+                
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#EAE6D9] pb-4 mb-6">
+                  <div className="space-y-2">
+                    <div className="w-24 h-4 bg-gray-200 rounded-lg"></div>
+                    <div className="w-32 h-5 bg-gray-200 rounded-lg"></div>
+                  </div>
+                  <div className="w-24 h-8 bg-gray-200 rounded-full"></div>
+                </div>
+
+                <div className="space-y-4 mb-6">
+                  {[1, 2].map((j) => (
+                    <div key={j} className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-gray-200 rounded-xl shrink-0"></div>
+                        <div className="space-y-2">
+                          <div className="w-48 h-5 bg-gray-200 rounded-lg"></div>
+                          <div className="w-24 h-4 bg-gray-200 rounded-lg"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pt-4 border-t border-[#EAE6D9]">
+                  <div className="space-y-2">
+                    <div className="w-24 h-4 bg-gray-200 rounded-lg"></div>
+                    <div className="w-32 h-6 bg-gray-200 rounded-lg"></div>
+                  </div>
+                  <div className="w-32 h-10 bg-gray-200 rounded-xl"></div>
+                </div>
+
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </div>
+    );
   }
 
   return (

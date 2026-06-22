@@ -8,6 +8,7 @@ import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, Che
 import { getCartDB, CartItem } from "../../lib/cart";
 import axiosInstance from "../../lib/axios";
 import toast from 'react-hot-toast';
+import { formatNumber, parseNumber } from "../../lib/numberFormat";
 
 const formatIDR = (val: number) => {
   return new Intl.NumberFormat('id-ID', { 
@@ -16,6 +17,10 @@ const formatIDR = (val: number) => {
     minimumFractionDigits: 0 
   }).format(val);
 };
+
+const Skeleton = ({ className }: { className: string }) => (
+  <div className={`animate-pulse bg-[#EAE6D9]/50 rounded-xl ${className}`} />
+);
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -34,6 +39,7 @@ export default function CheckoutPage() {
   // State Dropship
   const [isDropship, setIsDropship] = useState(false);
   const [dropshipperName, setDropshipperName] = useState("");
+  const [dropshipIntents, setDropshipIntents] = useState<Record<string, boolean>>({});
 
   // State Affiliate
   const [affiliateCodeInput, setAffiliateCodeInput] = useState("");
@@ -65,7 +71,8 @@ export default function CheckoutPage() {
     let price = item.product ? Number(item.product.price) : 0;
     
     // Potong Diskon Dropship (Tampilan Frontend)
-    if (isDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1)) {
+    const isIntendedDropship = dropshipIntents[item.product_id] === true;
+    if (isDropship && isIntendedDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1)) {
       if (item.product?.dropship_discount_type === 'percent') {
         price -= (price * ((item.product?.dropship_discount_value || 0) / 100));
       } else if (item.product?.dropship_discount_type === 'fixed') {
@@ -133,46 +140,56 @@ export default function CheckoutPage() {
     toast.success("Kupon berhasil dihapus.");
   };
 
-  const fetchShippingRate = async () => {
-    if (!postalCode || !city || !province || cartItems.length === 0) return;
-    
-    setIsCalculatingShipping(true);
-    try {
-      const res = await axiosInstance.post('/shipping/rate', {
-        postal_code: postalCode,
-        city: city,
-        province: province,
-        items: cartItems.map(item => ({
-          product_id: item.product_id,
-          qty: item.qty
-        }))
-      });
-
-      if (res.data.success) {
-        setShippingFee(res.data.data.price);
-        setShippingData(res.data.data.note || "");
-        setShippingEtd(res.data.data.estimated_days || "");
-        if (res.data.data.note) {
-           toast.success("Ongkir berhasil diupdate (Estimasi)");
-        }
-      }
-    } catch (err) {
-      console.error("Gagal mengambil ongkir", err);
-      setShippingFee(25000); // Fallback
-      setShippingData("Flat Rate");
-      setShippingEtd("2-3 Hari");
-    } finally {
-      setIsCalculatingShipping(false);
-    }
-  };
-
   // Trigger hitung ongkir saat alamat lengkap
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (postalCode.length >= 5 && city && province) {
-        fetchShippingRate();
+    if (!postalCode || !city || !province || cartItems.length === 0) {
+      setShippingFee(0);
+      setShippingData("");
+      setShippingEtd("");
+      return;
+    }
+    if (postalCode.length < 5) {
+      setShippingFee(0);
+      setShippingData("");
+      setShippingEtd("");
+      return;
+    }
+
+    const fetchShippingRate = async () => {
+      setIsCalculatingShipping(true);
+      try {
+        const res = await axiosInstance.post('/shipping/rate', {
+          postal_code: postalCode,
+          city: city,
+          province: province,
+          items: cartItems.map(item => ({
+            product_id: item.product_id,
+            qty: item.qty
+          }))
+        });
+
+        if (res.data.success) {
+          setShippingFee(res.data.data.price);
+          setShippingData(res.data.data.note || "");
+          setShippingEtd(res.data.data.estimated_days || "");
+          if (res.data.data.note) {
+             toast.success("Ongkir berhasil diupdate (Estimasi)");
+          }
+        }
+      } catch (err) {
+        console.error("Gagal mengambil ongkir", err);
+        setShippingFee(25000); // Fallback
+        setShippingData("Flat Rate");
+        setShippingEtd("2-3 Hari");
+      } finally {
+        setIsCalculatingShipping(false);
       }
-    }, 1000); // Debounce 1 detik
+    };
+
+    const timer = setTimeout(() => {
+      fetchShippingRate();
+    }, 500); // Debounce 500ms
+
     return () => clearTimeout(timer);
   }, [postalCode, city, province, cartItems]);
 
@@ -245,11 +262,10 @@ export default function CheckoutPage() {
         }
       }
 
-      // Cek apakah ada request dropship dari halaman produk
-      const dropshipIntent = localStorage.getItem("kambi_is_dropship");
-      if (dropshipIntent === "true") {
-        setIsDropship(true);
-      }
+      // Ambil intent dropship per produk dari localStorage
+      const intentsStr = localStorage.getItem("kambi_dropship_intents");
+      const intents = intentsStr ? JSON.parse(intentsStr) : {};
+      setDropshipIntents(intents);
 
       // Cek apakah ada kode afiliasi tersimpan
       const savedRef = localStorage.getItem("kambi_affiliate_ref");
@@ -265,6 +281,13 @@ export default function CheckoutPage() {
           return;
         }
         setCartItems(items);
+
+        // Validasi Dropship: Harus ada minimal 1 produk di keranjang yang memenuhi syarat minimal dropship (qty >= dropship_min_qty) DAN niat awalnya ditambahkan sebagai dropship
+        const hasValidDropshipItem = items.some((item) => 
+          item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1) && intents[item.product_id] === true
+        );
+
+        setIsDropship(hasValidDropshipItem);
       } catch (error) {
         console.error("Gagal mengambil data keranjang", error);
       } finally {
@@ -353,7 +376,7 @@ export default function CheckoutPage() {
     }
   };
 
-  if (!isLoaded) return <div className="min-h-screen flex items-center justify-center bg-[#FDFCF8]"><Loader2 className="animate-spin text-[#D4A373]" size={40}/></div>;
+
 
   // LAYAR SUKSES
   if (isSuccess) {
@@ -449,7 +472,45 @@ export default function CheckoutPage() {
                 <MapPin className="text-[#D4A373]"/> Alamat Pengiriman & Kontak
               </h2>
               
-              <div className="space-y-4">
+              {!isLoaded ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Penerima</label>
+                      <Skeleton className="h-12 w-full mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nomor Telepon</label>
+                      <Skeleton className="h-12 w-full mt-1" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Jalan / Gedung / Patokan</label>
+                    <Skeleton className="h-20 w-full mt-1" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kecamatan</label>
+                      <Skeleton className="h-12 w-full mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kota / Kabupaten</label>
+                      <Skeleton className="h-12 w-full mt-1" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Provinsi</label>
+                      <Skeleton className="h-12 w-full mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kode Pos</label>
+                      <Skeleton className="h-12 w-full mt-1" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Penerima</label>
@@ -484,7 +545,7 @@ export default function CheckoutPage() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kode Pos</label>
-                    <input required type="number" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Contoh: 12160" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1" />
+                    <input required type="text" value={postalCode} onChange={(e) => setPostalCode(parseNumber(e.target.value))} placeholder="Contoh: 12160" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all mt-1" />
                   </div>
                 </div>
 
@@ -505,7 +566,8 @@ export default function CheckoutPage() {
                   </div>
                 )}
               </div>
-            </div>
+            )}
+          </div>
 
             {/* Box Metode Pembayaran */}
             <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
@@ -557,10 +619,29 @@ export default function CheckoutPage() {
               <h3 className="text-xl font-bold text-[#2C352D] font-playfair mb-6 border-b border-[#EAE6D9] pb-4">Ringkasan Pesanan</h3>
               
               {/* List Item Kecil */}
-              <div className="space-y-4 mb-6 max-h-48 overflow-y-auto pr-2">
-                {cartItems.map(item => {
+              {!isLoaded ? (
+                <div className="space-y-4 mb-6">
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col gap-1.5">
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-3.5 w-20" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col gap-1.5">
+                      <Skeleton className="h-4 w-44" />
+                      <Skeleton className="h-3.5 w-16" />
+                    </div>
+                    <Skeleton className="h-4 w-12" />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 mb-6 max-h-48 overflow-y-auto pr-2">
+                  {cartItems.map(item => {
                   let displayPrice = item.product ? Number(item.product.price) : 0;
-                  const isItemDropshipValid = isDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1);
+                  const isIntendedDropship = dropshipIntents[item.product_id] === true;
+                  const isItemDropshipValid = isDropship && isIntendedDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1);
                   
                   if (isItemDropshipValid) {
                     if (item.product?.dropship_discount_type === 'percent') {
@@ -575,7 +656,7 @@ export default function CheckoutPage() {
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-[#2C352D] line-clamp-1">{item.product?.name}</p>
                         <p className="text-xs text-[#5A665A]">
-                          {item.qty} x {formatIDR(displayPrice)}
+                          {formatNumber(item.qty)} x {formatIDR(displayPrice)}
                           {isItemDropshipValid && <span className="ml-1 text-[10px] text-orange-600 font-bold">(Dropship)</span>}
                         </p>
                       </div>
@@ -584,6 +665,7 @@ export default function CheckoutPage() {
                   );
                 })}
               </div>
+            )}
 
               {/* Box Input Kupon Promo */}
               <div className="mb-6">
@@ -625,19 +707,25 @@ export default function CheckoutPage() {
               <div className="space-y-3 mb-6 text-[#5A665A] font-light text-sm border-t border-[#EAE6D9] pt-4">
                 <div className="flex justify-between">
                   <span>Subtotal Produk</span>
-                  <span className="font-medium text-[#2C352D]">{formatIDR(subtotal)}</span>
+                  {!isLoaded ? (
+                    <Skeleton className="h-4 w-20" />
+                  ) : (
+                    <span className="font-medium text-[#2C352D]">{formatIDR(subtotal)}</span>
+                  )}
                 </div>
                 
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between items-center">
                     <span>Ongkos Kirim</span>
-                    {isCalculatingShipping ? (
+                    {!isLoaded ? (
+                      <Skeleton className="h-4 w-16" />
+                    ) : isCalculatingShipping ? (
                       <Loader2 size={14} className="animate-spin text-[#D4A373]" />
                     ) : (
                       <span className="font-medium text-[#2C352D]">{formatIDR(shippingFee)}</span>
                     )}
                   </div>
-                  {shippingNote && !isCalculatingShipping && (
+                  {shippingNote && !isCalculatingShipping && isLoaded && (
                     <div className="flex justify-between items-center text-[11px] text-[#D4A373] font-medium">
                       <span>Ekspedisi: {shippingNote}</span>
                       {shippingEtd && <span>Estimasi: {shippingEtd}</span>}
@@ -645,7 +733,7 @@ export default function CheckoutPage() {
                   )}
                 </div>
 
-                {discountAmount > 0 && (
+                {discountAmount > 0 && isLoaded && (
                   <div className="flex justify-between text-green-600 font-medium pt-1">
                     <span>Diskon Promo ({activeCoupon?.code})</span>
                     <span>- {formatIDR(discountAmount)}</span>
@@ -656,11 +744,21 @@ export default function CheckoutPage() {
               {/* Total Akhir */}
               <div className="border-t border-[#EAE6D9] pt-6 mb-8 flex flex-col">
                 <span className="text-xs font-bold text-[#5A665A] uppercase tracking-widest mb-1">Total Pembayaran</span>
-                <span className="text-3xl font-bold text-[#3A5034] tracking-tight">{formatIDR(total)}</span>
+                {!isLoaded ? (
+                  <Skeleton className="h-8 w-32 mt-1" />
+                ) : (
+                  <span className="text-3xl font-bold text-[#3A5034] tracking-tight">{formatIDR(total)}</span>
+                )}
               </div>
 
-              <button disabled={isProcessing} type="submit" className="w-full flex items-center justify-center gap-2 bg-[#3A5034] disabled:bg-[#5A665A] text-white py-4 rounded-2xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300">
-                {isProcessing ? <Loader2 size={20} className="animate-spin" /> : "Bayar Sekarang"}
+              <button disabled={!isLoaded || isProcessing} type="submit" className="w-full flex items-center justify-center gap-2 bg-[#3A5034] disabled:bg-[#5A665A] text-white py-4 rounded-2xl font-bold tracking-wide shadow-lg hover:bg-[#2C352D] hover:-translate-y-1 transition-all duration-300">
+                {!isLoaded ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : isProcessing ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  "Bayar Sekarang"
+                )}
               </button>
 
               <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[#5A665A] font-light">

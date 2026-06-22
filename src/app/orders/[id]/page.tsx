@@ -89,7 +89,82 @@ export default function OrderDetailPage() {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen flex justify-center items-center"><Loader2 className="animate-spin text-[#D4A373]" size={40}/></div>;
+    return (
+      <div className="min-h-screen bg-[#FDFCF8] pt-10 pb-24 px-4 sm:px-6 lg:px-8 animate-pulse">
+        <div className="max-w-3xl mx-auto">
+          
+          <div className="w-48 h-5 bg-gray-200 rounded-lg mb-8"></div>
+
+          {/* INVOICE CARD SKELETON */}
+          <div className="bg-white rounded-3xl border border-[#EAE6D9] shadow-sm overflow-hidden">
+            
+            {/* Header Status */}
+            <div className="bg-[#3A5034]/50 p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#EAE6D9]">
+              <div>
+                <div className="w-32 h-4 bg-gray-200 rounded-lg mb-2"></div>
+                <div className="w-40 h-8 bg-gray-200 rounded-lg"></div>
+              </div>
+              <div className="text-left sm:text-right">
+                <div className="w-32 h-4 bg-gray-200 rounded-lg mb-2"></div>
+                <div className="w-32 h-6 bg-gray-200 rounded-lg"></div>
+              </div>
+            </div>
+
+            <div className="p-8">
+              {/* Tracking / Payment skeleton */}
+              <div className="mb-8 p-6 bg-gray-100 rounded-2xl h-32"></div>
+
+              {/* Info Resi & Invoice */}
+              <div className="flex flex-col sm:flex-row justify-between gap-6 pb-8 border-b border-[#EAE6D9]">
+                <div className="space-y-2">
+                  <div className="w-32 h-4 bg-gray-200 rounded-lg mb-2"></div>
+                  <div className="w-48 h-5 bg-gray-200 rounded-lg"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="w-32 h-4 bg-gray-200 rounded-lg mb-2"></div>
+                  <div className="w-48 h-5 bg-gray-200 rounded-lg"></div>
+                  <div className="w-32 h-4 bg-gray-200 rounded-lg"></div>
+                </div>
+              </div>
+
+              {/* List Produk */}
+              <div className="py-8 border-b border-[#EAE6D9]">
+                <div className="w-32 h-4 bg-gray-200 rounded-lg mb-6"></div>
+                <div className="space-y-6">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-50">
+                      <div className="space-y-2 flex-1">
+                        <div className="w-48 h-5 bg-gray-200 rounded-lg"></div>
+                        <div className="w-32 h-4 bg-gray-200 rounded-lg"></div>
+                      </div>
+                      <div className="w-24 h-6 bg-gray-200 rounded-lg"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Total Pembayaran */}
+              <div className="pt-8">
+                <div className="space-y-4 mb-6 border-b border-[#EAE6D9] pb-6">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex justify-between items-center">
+                      <div className="w-32 h-4 bg-gray-200 rounded-lg"></div>
+                      <div className="w-24 h-5 bg-gray-200 rounded-lg"></div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-between items-center p-4 bg-gray-100 rounded-2xl border border-[#EAE6D9]">
+                  <div className="w-32 h-5 bg-gray-200 rounded-lg"></div>
+                  <div className="w-40 h-8 bg-gray-200 rounded-lg"></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!order) return null;

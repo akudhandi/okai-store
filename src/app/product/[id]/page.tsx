@@ -10,6 +10,7 @@ import axiosInstance from "../../../lib/axios";
 import { addToCartDB } from "../../../lib/cart"; 
 import ProductReviews from "../../../components/ProductReviews";
 import toast from 'react-hot-toast';
+import { formatNumber } from "../../../lib/numberFormat";
 
 interface Product {
   id: number;
@@ -105,6 +106,18 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
 
     try {
       await addToCartDB(product.id, qty);
+      
+      // Simpan niat dropship khusus untuk produk ini saat Add To Cart
+      let intentsStr = localStorage.getItem("kambi_dropship_intents");
+      let intents = intentsStr ? JSON.parse(intentsStr) : {};
+      
+      if (isDropshipChecked && product.is_dropship_enabled && qty >= (product.dropship_min_qty || 1)) {
+        intents[product.id] = true;
+      } else {
+        intents[product.id] = false;
+      }
+      localStorage.setItem("kambi_dropship_intents", JSON.stringify(intents));
+
       toast.success(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
     } catch (error) {
       toast.error("Gagal menambahkan ke keranjang. Silakan coba lagi.");
@@ -189,7 +202,7 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
             <div className="mb-6">
               <div className="flex items-center gap-3 text-[#2C352D]">
                 <CheckCircle2 size={20} className="text-[#D4A373]"/> 
-                <span className="font-medium text-sm text-lg font-bold">Stok: {product.stock} pcs (Tersedia)</span>
+                <span className="font-medium text-sm text-lg font-bold">Stok: {formatNumber(product.stock)} pcs (Tersedia)</span>
               </div>
             </div>
 
@@ -201,11 +214,6 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
                     checked={isDropshipChecked} 
                     onChange={(e) => {
                       setIsDropshipChecked(e.target.checked);
-                      if (e.target.checked) {
-                        localStorage.setItem("kambi_is_dropship", "true");
-                      } else {
-                        localStorage.removeItem("kambi_is_dropship");
-                      }
                     }} 
                     className="w-5 h-5 accent-[#E65100] rounded cursor-pointer"
                   />
@@ -226,7 +234,7 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
                 {/* Quantity Selector */}
                 <div className="flex items-center justify-between bg-[#FDFCF8] border border-[#EAE6D9] rounded-2xl p-2 sm:w-1/3">
                   <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-10 h-10 flex items-center justify-center text-[#5A665A] hover:bg-white hover:shadow-sm rounded-xl transition-all"><Minus size={18}/></button>
-                  <span className="font-bold text-[#2C352D] text-lg">{qty}</span>
+                  <span className="font-bold text-[#2C352D] text-lg">{formatNumber(qty)}</span>
                   <button onClick={() => setQty(Math.min(product.stock, qty + 1))} className="w-10 h-10 flex items-center justify-center text-[#5A665A] hover:bg-white hover:shadow-sm rounded-xl transition-all"><Plus size={18}/></button>
                 </div>
 

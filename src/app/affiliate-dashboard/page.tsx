@@ -324,6 +324,44 @@ export default function AffiliateDashboard() {
             </div>
           </div>
               </div>
+
+              {/* RANKING PRODUK */}
+              <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-[#EAE6D9] shadow-sm">
+                <h3 className="text-xl font-playfair font-semibold text-[#2C352D] mb-6 flex items-center gap-2">
+                  <TrendingUp className="text-[#D4A373]" size={24} />
+                  Performa Produk (Ranking Klik)
+                </h3>
+                <div className="space-y-4">
+                  {affiliateData?.product_clicks && affiliateData.product_clicks.length > 0 ? (
+                    affiliateData.product_clicks.map((item: any, index: number) => (
+                      <div key={index} className="flex items-center gap-4 p-4 rounded-xl border border-[#EAE6D9] hover:border-[#D4A373] transition-all bg-[#FDFCF8]">
+                        <div className="w-8 h-8 rounded-full bg-[#3A5034] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                          #{index + 1}
+                        </div>
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#F3EFE4] shrink-0 border border-[#EAE6D9]">
+                          {item.image_url ? (
+                            <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Package size={24} className="m-auto mt-3 text-[#D4A373]/50" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-[#2C352D] text-sm line-clamp-1">{item.name}</h4>
+                          <div className="flex items-center gap-1 mt-1 text-xs font-medium text-[#5A665A]">
+                            <LinkIcon size={12} />
+                            <span>{item.clicks} total klik dari link Anda</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center bg-[#FDFCF8] rounded-xl border border-dashed border-[#EAE6D9]">
+                      <p className="text-sm font-medium italic text-[#5A665A]">Belum ada klik pada produk Anda.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
             </div>
           )}
 

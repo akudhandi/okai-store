@@ -89,8 +89,66 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FDFCF8] flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#D4A373]" size={48} />
+      <div className="overflow-hidden animate-pulse">
+        {/* Banner Skeleton */}
+        <div className="w-full bg-[#2C352D]/50 h-[48px] border-b border-[#D4A373]/20"></div>
+
+        {/* Hero Section Skeleton */}
+        <section className="relative pt-16 pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-12 min-h-[90vh]">
+          <div className="absolute inset-0 bg-linear-to-b from-[#FDFCF8] to-[#F3EFE4] -z-10 rounded-b-[4rem]"></div>
+          
+          <div className="flex-1 space-y-8 z-10 w-full">
+            <div className="w-40 h-8 bg-gray-200 rounded-full"></div>
+            <div className="w-3/4 h-16 bg-gray-200 rounded-lg"></div>
+            <div className="w-2/3 h-16 bg-gray-200 rounded-lg"></div>
+            <div className="w-full max-w-xl h-24 bg-gray-200 rounded-lg"></div>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <div className="w-48 h-14 bg-gray-200 rounded-full"></div>
+              <div className="w-48 h-14 bg-gray-200 rounded-full"></div>
+            </div>
+          </div>
+
+          <div className="flex-1 w-full flex justify-center">
+            <div className="w-80 h-80 bg-gray-200 rounded-[2.5rem]"></div>
+          </div>
+        </section>
+
+        {/* Edukasi Skeleton */}
+        <section className="py-24 px-4 max-w-7xl mx-auto">
+          <div className="text-center mb-16 space-y-4 flex flex-col items-center">
+            <div className="w-2/3 h-12 bg-gray-200 rounded-lg"></div>
+            <div className="w-1/2 h-6 bg-gray-200 rounded-lg"></div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white p-10 rounded-3xl border border-[#EAE6D9]/50 space-y-4">
+                <div className="w-14 h-14 bg-gray-200 rounded-2xl"></div>
+                <div className="w-3/4 h-8 bg-gray-200 rounded-lg"></div>
+                <div className="w-full h-20 bg-gray-200 rounded-lg"></div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Featured Products Skeleton */}
+        <section className="py-24 bg-[#F3EFE4]/40 border-y border-[#EAE6D9]/50">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="mb-16 space-y-4">
+              <div className="w-1/3 h-12 bg-gray-200 rounded-lg"></div>
+              <div className="w-1/2 h-6 bg-gray-200 rounded-lg"></div>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white p-8 rounded-[2rem] border border-[#EAE6D9]/50 space-y-4">
+                  <div className="w-full aspect-4/3 bg-gray-200 rounded-2xl"></div>
+                  <div className="w-3/4 h-8 bg-gray-200 rounded-lg"></div>
+                  <div className="w-1/2 h-8 bg-gray-200 rounded-lg"></div>
+                  <div className="w-full h-14 bg-gray-200 rounded-xl mt-4"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
