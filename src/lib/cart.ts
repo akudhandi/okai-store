@@ -16,6 +16,7 @@ export interface CartItem {
     dropship_min_qty?: number;
     dropship_discount_type?: string;
     dropship_discount_value?: number;
+    is_affiliate_enabled?: boolean;
   };
 }
 

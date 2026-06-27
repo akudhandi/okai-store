@@ -104,6 +104,11 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
       return;
     }
 
+    if (isDropshipChecked && product.is_dropship_enabled && qty < (product.dropship_min_qty || 1)) {
+      toast.error(`Gagal: Minimal pembelian untuk dropship adalah ${product.dropship_min_qty} pcs!`);
+      return;
+    }
+
     try {
       await addToCartDB(product.id, qty);
       
@@ -213,17 +218,19 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
                     type="checkbox" 
                     checked={isDropshipChecked} 
                     onChange={(e) => {
-                      setIsDropshipChecked(e.target.checked);
+                      const checked = e.target.checked;
+                      setIsDropshipChecked(checked);
+                      if (checked) {
+                        setQty(prev => Math.max(prev, product.dropship_min_qty || 1));
+                      }
                     }} 
                     className="w-5 h-5 accent-[#E65100] rounded cursor-pointer"
                   />
                   <span className="font-bold text-[#E65100]">Kirim sebagai Dropshipper</span>
                 </label>
-                {isDropshipChecked && (
-                  <p className="text-xs text-orange-800 mt-2 font-medium">
-                    ✨ Dapatkan diskon khusus dropshipper <strong>{product.dropship_discount_type === 'percent' ? `${product.dropship_discount_value}%` : formatIDR(product.dropship_discount_value)}</strong> dengan minimal pembelian {product.dropship_min_qty} pcs!
-                  </p>
-                )}
+                <p className="text-xs text-orange-800 mt-2 font-medium">
+                  ✨ Dapatkan diskon khusus dropshipper <strong>{product.dropship_discount_type === 'percent' ? `${product.dropship_discount_value}%` : formatIDR(product.dropship_discount_value)}</strong> dengan minimal pembelian {product.dropship_min_qty} pcs!
+                </p>
               </div>
             )}
 
@@ -233,7 +240,7 @@ export default function ProductDetail({ params }: { params: Promise<{ id: string
                 
                 {/* Quantity Selector */}
                 <div className="flex items-center justify-between bg-[#FDFCF8] border border-[#EAE6D9] rounded-2xl p-2 sm:w-1/3">
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-10 h-10 flex items-center justify-center text-[#5A665A] hover:bg-white hover:shadow-sm rounded-xl transition-all"><Minus size={18}/></button>
+                  <button onClick={() => setQty(Math.max(isDropshipChecked ? (product.dropship_min_qty || 1) : 1, qty - 1))} className="w-10 h-10 flex items-center justify-center text-[#5A665A] hover:bg-white hover:shadow-sm rounded-xl transition-all"><Minus size={18}/></button>
                   <span className="font-bold text-[#2C352D] text-lg">{formatNumber(qty)}</span>
                   <button onClick={() => setQty(Math.min(product.stock, qty + 1))} className="w-10 h-10 flex items-center justify-center text-[#5A665A] hover:bg-white hover:shadow-sm rounded-xl transition-all"><Plus size={18}/></button>
                 </div>

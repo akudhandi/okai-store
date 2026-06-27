@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, CheckCircle2, Ticket } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Wallet, Truck, ShieldCheck, Loader2, CheckCircle2, Ticket, Landmark, Store, Smartphone, QrCode, ArrowRightLeft } from "lucide-react";
 // 🚩 UBAH IMPORT: Gunakan getCartDB dari sistem baru
 import { getCartDB, CartItem } from "../../lib/cart";
 import axiosInstance from "../../lib/axios";
@@ -35,6 +35,10 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [createdOrders, setCreatedOrders] = useState<any[]>([]);
+  const [selectedOrderToPay, setSelectedOrderToPay] = useState<any>(null);
+  const [showPaymentSelection, setShowPaymentSelection] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<any>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // State Dropship
   const [isDropship, setIsDropship] = useState(false);
@@ -68,39 +72,44 @@ export default function CheckoutPage() {
 
   // Kalkulasi Harga (Diselaraskan dengan struktur item.product)
   const subtotal = cartItems.reduce((acc, item) => {
-    let price = item.product ? Number(item.product.price) : 0;
-    
-    // Potong Diskon Dropship (Tampilan Frontend)
-    const isIntendedDropship = dropshipIntents[item.product_id] === true;
-    if (isDropship && isIntendedDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1)) {
-      if (item.product?.dropship_discount_type === 'percent') {
-        price -= (price * ((item.product?.dropship_discount_value || 0) / 100));
-      } else if (item.product?.dropship_discount_type === 'fixed') {
-        price -= (item.product?.dropship_discount_value || 0);
-      }
-      price = Math.max(0, price);
-    }
-    
+    const price = item.product ? Number(item.product.price) : 0;
     return acc + (price * item.qty);
   }, 0);
+
+  // Kalkulasi Diskon Dropship
+  const dropshipDiscount = isDropship ? cartItems.reduce((acc, item) => {
+    if (item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1)) {
+      let discount = 0;
+      const price = item.product ? Number(item.product.price) : 0;
+      if (item.product?.dropship_discount_type === 'percent') {
+        discount = (price * ((item.product?.dropship_discount_value || 0) / 100)) * item.qty;
+      } else if (item.product?.dropship_discount_type === 'fixed') {
+        discount = (item.product?.dropship_discount_value || 0) * item.qty;
+      }
+      return acc + discount;
+    }
+    return acc;
+  }, 0) : 0;
+
+  const discountedSubtotal = subtotal - dropshipDiscount;
   
   // Kalkulasi Diskon Berdasarkan Kupon Aktif
   let discountAmount = 0;
   if (activeCoupon) {
     if (activeCoupon.discount_type === 'percent') {
-      discountAmount = (subtotal * activeCoupon.discount_value) / 100;
+      discountAmount = (discountedSubtotal * activeCoupon.discount_value) / 100;
       if (activeCoupon.max_discount && discountAmount > activeCoupon.max_discount) {
         discountAmount = activeCoupon.max_discount;
       }
     } else if (activeCoupon.discount_type === 'fixed') {
       discountAmount = activeCoupon.discount_value;
     }
-    if (discountAmount > subtotal) {
-      discountAmount = subtotal;
+    if (discountAmount > discountedSubtotal) {
+      discountAmount = discountedSubtotal;
     }
   }
 
-  const total = (subtotal - discountAmount) + shippingFee;
+  const total = (subtotal - dropshipDiscount - discountAmount) + shippingFee;
 
   // Fungsi untuk mengecek kupon ke Backend
   const handleApplyCoupon = async () => {
@@ -198,6 +207,14 @@ export default function CheckoutPage() {
     const code = (typeof codeOverride === 'string') ? codeOverride : affiliateCodeInput;
     
     if (!code || typeof code !== 'string') return;
+
+    // Cek apakah ada produk di keranjang yang tidak terbuka untuk afiliasi
+    const hasNonAffiliateItem = cartItems.some(item => !item.product?.is_affiliate_enabled);
+    if (hasNonAffiliateItem) {
+      const nonAffiliateProduct = cartItems.find(item => !item.product?.is_affiliate_enabled)?.product?.name || "salah satu produk";
+      toast.error(`Produk "${nonAffiliateProduct}" tidak terbuka untuk program afiliasi. Kode referral tidak dapat digunakan.`);
+      return;
+    }
     
     setIsCheckingAffiliate(true);
     try {
@@ -362,7 +379,9 @@ export default function CheckoutPage() {
           }, 3000);
         } else {
           if (orders.length === 1) {
-            window.location.href = orders[0].payment_url || response.data.payment_url;
+            setSelectedOrderToPay(orders[0]);
+            setShowPaymentSelection(true);
+            setIsProcessing(false);
           } else {
             setIsProcessing(false);
             setIsSuccess(true);
@@ -376,7 +395,218 @@ export default function CheckoutPage() {
     }
   };
 
+  // LAYAR PEMILIHAN METODE PEMBAYARAN
+  if (showPaymentSelection && selectedOrderToPay) {
+    const isSplitPayment = createdOrders.length > 1;
 
+    const paymentCategories = [
+      {
+        id: "bank_transfer",
+        title: "Transfer Bank / Virtual Account",
+        icon: Landmark,
+        description: "Bayar otomatis melalui Mobile/Internet Banking atau ATM.",
+        channels: [
+          { name: "BCA Virtual Account", code: "bca", logo: "BCA", color: "bg-blue-50 text-blue-800 border-blue-200" },
+          { name: "Mandiri Virtual Account", code: "mandiri", logo: "Mandiri", color: "bg-yellow-50 text-yellow-800 border-yellow-200" },
+          { name: "BNI Virtual Account", code: "bni", logo: "BNI", color: "bg-orange-50 text-orange-800 border-orange-200" },
+          { name: "BRI Virtual Account", code: "bri", logo: "BRI", color: "bg-blue-50 text-blue-900 border-blue-300" },
+          { name: "Permata Virtual Account", code: "permata", logo: "Permata", color: "bg-green-50 text-green-800 border-green-200" },
+        ]
+      },
+      {
+        id: "credit_card",
+        title: "Kartu Kredit / Debit",
+        icon: CreditCard,
+        description: "Menerima semua kartu dengan logo Visa, Mastercard, JCB, dan AMEX.",
+        channels: [
+          { name: "Visa", code: "visa", logo: "VISA", color: "bg-indigo-50 text-indigo-800 border-indigo-200" },
+          { name: "Mastercard", code: "mastercard", logo: "MC", color: "bg-red-50 text-red-800 border-red-200" },
+          { name: "JCB", code: "jcb", logo: "JCB", color: "bg-green-50 text-green-900 border-green-300" },
+          { name: "American Express", code: "amex", logo: "AMEX", color: "bg-cyan-50 text-cyan-800 border-cyan-200" }
+        ]
+      },
+      {
+        id: "ewallet",
+        title: "E-Wallet",
+        icon: Smartphone,
+        description: "Bayar cepat menggunakan saldo e-wallet favorit Anda.",
+        channels: [
+          { name: "DANA", code: "dana", logo: "DANA", color: "bg-sky-50 text-sky-800 border-sky-200" },
+          { name: "OVO", code: "ovo", logo: "OVO", color: "bg-purple-50 text-purple-800 border-purple-200" },
+          { name: "LinkAja", code: "linkaja", logo: "LinkAja", color: "bg-red-50 text-red-900 border-red-300" },
+          { name: "ShopeePay", code: "shopeepay", logo: "ShopeePay", color: "bg-orange-50 text-orange-900 border-orange-300" }
+        ]
+      },
+      {
+        id: "qr_payment",
+        title: "QR Payment",
+        icon: QrCode,
+        description: "Scan kode QRIS menggunakan aplikasi pembayaran pilihan Anda.",
+        channels: [
+          { name: "QRIS", code: "qris", logo: "QRIS", color: "bg-pink-50 text-pink-800 border-pink-200" }
+        ]
+      },
+      {
+        id: "retail_outlet",
+        title: "Gerai Retail",
+        icon: Store,
+        description: "Bayar tunai di minimarket terdekat.",
+        channels: [
+          { name: "Alfamart", code: "alfamart", logo: "Alfamart", color: "bg-red-50 text-red-700 border-red-200" },
+          { name: "Indomaret", code: "indomaret", logo: "Indomaret", color: "bg-blue-50 text-blue-700 border-blue-200" }
+        ]
+      },
+      {
+        id: "direct_debit",
+        title: "Direct Debit",
+        icon: ArrowRightLeft,
+        description: "Debit instan langsung dari rekening bank Anda.",
+        channels: [
+          { name: "BCA KlikPay", code: "bca_klikpay", logo: "KlikPay", color: "bg-teal-50 text-teal-800 border-teal-200" },
+          { name: "BRI Direct Debit", code: "bri_dd", logo: "BRI DD", color: "bg-sky-50 text-sky-900 border-sky-300" }
+        ]
+      }
+    ];
+
+    const handleSelectChannel = async (channel: any) => {
+      setSelectedChannel(channel);
+      setIsRedirecting(true);
+      
+      try {
+        const res = await axiosInstance.post(`/orders/${selectedOrderToPay.id}/recreate-invoice`, {
+          payment_method: channel.code
+        });
+
+        if (res.data.success && res.data.payment_url) {
+          window.location.href = res.data.payment_url;
+        } else {
+          toast.error("Gagal mendapatkan link pembayaran.");
+          setIsRedirecting(false);
+        }
+      } catch (err) {
+        console.error("Gagal memproses metode pembayaran:", err);
+        toast.error("Terjadi kesalahan sistem saat menghubungi Xendit.");
+        setIsRedirecting(false);
+      }
+    };
+
+    const handleBack = () => {
+      setShowPaymentSelection(false);
+      setSelectedChannel(null);
+      setIsRedirecting(false);
+      
+      if (!isSplitPayment) {
+        router.push("/orders");
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-[#FDFCF8] py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          
+          {/* Header */}
+          <div className="mb-8 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="inline-flex items-center gap-2 text-[#5A665A] hover:text-[#D4A373] transition-colors font-medium text-sm cursor-pointer"
+            >
+              <ArrowLeft size={16} /> 
+              {isSplitPayment ? "Kembali ke Detail Pesanan" : "Kembali ke Riwayat Pesanan"}
+            </button>
+            <div className="text-right">
+              <span className="text-xs text-[#5A665A] font-light">Status Pesanan:</span>
+              <span className="ml-1.5 px-2.5 py-1 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                Menunggu Pembayaran
+              </span>
+            </div>
+          </div>
+
+          {/* Info Card Pesanan */}
+          <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] border border-[#EAE6D9] shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <p className="text-[10px] font-bold text-[#D4A373] uppercase tracking-widest mb-1">Informasi Pembayaran</p>
+              <h2 className="text-xl font-bold font-playfair text-[#2C352D]">{selectedOrderToPay.invoice_no}</h2>
+              {selectedOrderToPay.warehouse && (
+                <p className="text-xs text-[#5A665A] mt-1">
+                  Dikirim dari: <strong className="text-[#3A5034]">{selectedOrderToPay.warehouse.name}</strong>
+                </p>
+              )}
+            </div>
+            <div className="text-left md:text-right border-t md:border-t-0 border-[#EAE6D9] pt-4 md:pt-0 w-full md:w-auto">
+              <p className="text-xs font-semibold text-[#5A665A] uppercase tracking-wider">Total Tagihan</p>
+              <p className="text-3xl font-black text-[#3A5034] tracking-tight mt-1">{formatIDR(selectedOrderToPay.total_price)}</p>
+            </div>
+          </div>
+
+          <h3 className="text-2xl font-bold font-playfair text-[#2C352D] mb-6">Pilih Metode Pembayaran</h3>
+
+          {/* Grid Kategori Pembayaran */}
+          <div className="space-y-6">
+            {paymentCategories.map((category) => {
+              const CategoryIcon = category.icon;
+              return (
+                <div key={category.id} className="bg-white p-6 rounded-[2.5rem] border border-[#EAE6D9] shadow-sm hover:border-[#D4A373]/50 transition-all duration-300">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="p-3 bg-[#3A5034]/5 text-[#3A5034] rounded-2xl">
+                      <CategoryIcon size={24} />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold font-playfair text-[#2C352D]">{category.title}</h4>
+                      <p className="text-xs text-[#5A665A] mt-0.5 font-light leading-relaxed">{category.description}</p>
+                    </div>
+                  </div>
+
+                  {/* Grid Saluran/Channels */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
+                    {category.channels.map((channel) => (
+                      <button
+                        key={channel.code}
+                        type="button"
+                        onClick={() => handleSelectChannel(channel)}
+                        disabled={isRedirecting}
+                        className="group flex flex-col justify-between items-center text-center p-4 border border-[#EAE6D9] rounded-2xl hover:border-[#3A5034] hover:bg-[#3A5034]/5 active:scale-95 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed min-h-[90px]"
+                      >
+                        <div className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase border mb-2 ${channel.color} group-hover:scale-105 transition-transform`}>
+                          {channel.logo}
+                        </div>
+                        <span className="text-[11px] font-semibold text-[#5A665A] group-hover:text-[#3A5034] transition-colors line-clamp-1 leading-none">
+                          {channel.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-8 flex items-center justify-center gap-2 text-xs text-[#5A665A] font-light">
+            <ShieldCheck size={16} className="text-[#D4A373]" /> Pembayaran diamankan secara enkripsi penuh oleh Xendit
+          </div>
+
+        </div>
+
+        {/* Loading Overlay */}
+        {isRedirecting && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-[#EAE6D9] shadow-2xl text-center max-w-sm w-full mx-4">
+              <div className="w-16 h-16 bg-[#3A5034]/5 text-[#3A5034] rounded-full flex items-center justify-center mx-auto mb-6">
+                <Loader2 className="animate-spin" size={32} />
+              </div>
+              <h4 className="text-xl font-bold font-playfair text-[#2C352D] mb-2">Mengalihkan Pembayaran</h4>
+              <p className="text-xs text-[#5A665A] leading-relaxed mb-4">
+                Kami sedang menghubungkan Anda secara aman ke halaman pembayaran Xendit untuk metode <strong>{selectedChannel?.name}</strong>.
+              </p>
+              <div className="text-[10px] font-bold text-[#D4A373] tracking-widest uppercase animate-pulse">
+                Mohon Tunggu...
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // LAYAR SUKSES
   if (isSuccess) {
@@ -409,14 +639,17 @@ export default function CheckoutPage() {
                       <p className="text-sm font-bold text-[#3A5034] mt-0.5">{formatIDR(order.total_price)}</p>
                     </div>
                     {order.payment_url ? (
-                      <a
-                        href={order.payment_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2.5 bg-[#3A5034] hover:bg-[#2C352D] text-white text-xs font-bold rounded-xl text-center shadow-md transition-all whitespace-nowrap"
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSelectedOrderToPay(order);
+                          setShowPaymentSelection(true);
+                        }}
+                        className="px-4 py-2.5 bg-[#3A5034] hover:bg-[#2C352D] text-white text-xs font-bold rounded-xl text-center shadow-md transition-all whitespace-nowrap cursor-pointer"
                       >
                         Bayar Sekarang
-                      </a>
+                      </button>
                     ) : (
                       <span className="text-xs text-green-600 font-bold">Lunas / COD</span>
                     )}
@@ -549,20 +782,51 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {isDropship && (
-                  <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-xl">
-                    <label className="text-xs font-bold text-orange-800 uppercase tracking-widest pl-1 flex items-center gap-2 mb-2">
-                      <Truck size={14} /> Nama Toko Pengirim (Dropshipper)
+                {/* Opsi Dropship */}
+                {cartItems.some(item => item.product?.is_dropship_enabled) && (
+                  <div className="mt-6 p-4 bg-orange-50/50 border border-orange-200 rounded-2xl">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={isDropship} 
+                        onChange={(e) => {
+                          setIsDropship(e.target.checked);
+                          if (!e.target.checked) {
+                            setDropshipperName("");
+                          }
+                        }} 
+                        className="w-5 h-5 accent-[#E65100] rounded cursor-pointer"
+                      />
+                      <span className="font-bold text-[#E65100]">Kirim sebagai Dropshipper (Centang jika ingin dropship)</span>
                     </label>
-                    <input 
-                      required 
-                      type="text" 
-                      value={dropshipperName} 
-                      onChange={(e) => setDropshipperName(e.target.value)} 
-                      placeholder="Masukkan nama toko Anda..." 
-                      className="w-full bg-white border border-orange-200 rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-orange-500/50 outline-none transition-all" 
-                    />
-                    <p className="text-xs text-orange-600 mt-2 font-medium">✨ Karena Anda membeli sebagai dropshipper, paket akan dikirim menggunakan nama toko ini.</p>
+                    
+                    {isDropship && (
+                      <div className="mt-4">
+                        <label className="text-xs font-bold text-orange-800 uppercase tracking-widest pl-1 flex items-center gap-2 mb-2">
+                          <Truck size={14} /> Nama Toko Pengirim (Dropshipper)
+                        </label>
+                        <input 
+                          required 
+                          type="text" 
+                          value={dropshipperName} 
+                          onChange={(e) => setDropshipperName(e.target.value)} 
+                          placeholder="Masukkan nama toko pengirim..." 
+                          className="w-full bg-white border border-orange-200 rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-orange-500/50 outline-none transition-all" 
+                        />
+                        <p className="text-xs text-orange-600 mt-2 font-medium">✨ Paket akan dikirim menggunakan nama toko ini sebagai pengirim.</p>
+                      </div>
+                    )}
+
+                    {isDropship && cartItems.map(item => {
+                      if (item.product?.is_dropship_enabled && item.qty < (item.product?.dropship_min_qty || 1)) {
+                        return (
+                          <div key={item.id} className="mt-3 p-3 bg-red-50 text-red-700 rounded-xl border border-red-200 text-xs font-medium">
+                            ⚠️ <strong>{item.product.name}</strong> tidak mendapatkan diskon dropship karena kuantiti ({item.qty} pcs) kurang dari minimal pembelian ({item.product.dropship_min_qty} pcs).
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                   </div>
                 )}
               </div>
@@ -640,8 +904,7 @@ export default function CheckoutPage() {
                 <div className="space-y-4 mb-6 max-h-48 overflow-y-auto pr-2">
                   {cartItems.map(item => {
                   let displayPrice = item.product ? Number(item.product.price) : 0;
-                  const isIntendedDropship = dropshipIntents[item.product_id] === true;
-                  const isItemDropshipValid = isDropship && isIntendedDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1);
+                  const isItemDropshipValid = isDropship && item.product?.is_dropship_enabled && item.qty >= (item.product?.dropship_min_qty || 1);
                   
                   if (isItemDropshipValid) {
                     if (item.product?.dropship_discount_type === 'percent') {
@@ -732,6 +995,13 @@ export default function CheckoutPage() {
                     </div>
                   )}
                 </div>
+
+                {dropshipDiscount > 0 && isLoaded && (
+                  <div className="flex justify-between text-orange-600 font-medium pt-1">
+                    <span>Diskon Dropship</span>
+                    <span>- {formatIDR(dropshipDiscount)}</span>
+                  </div>
+                )}
 
                 {discountAmount > 0 && isLoaded && (
                   <div className="flex justify-between text-green-600 font-medium pt-1">

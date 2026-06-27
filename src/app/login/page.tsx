@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation"; 
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,6 +21,34 @@ export default function LoginPage() {
   // State untuk loading dan error
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    // Jalankan kode hanya di sisi client
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      const userStr = params.get("user");
+      const error = params.get("error");
+
+      if (token && userStr) {
+        try {
+          localStorage.setItem("kambi_token", token);
+          localStorage.setItem("kambi_user", userStr);
+
+          // Kirim sinyal ke Navbar agar data ter-sync
+          window.dispatchEvent(new Event("userLogin"));
+          toast.success("Login via Google Berhasil! 🔑");
+          
+          // Alihkan ke Beranda
+          router.push("/");
+        } catch (e) {
+          console.error("Gagal memproses login Google:", e);
+        }
+      } else if (error === "google_failed") {
+        toast.error("Gagal masuk dengan Google. Silakan coba lagi.");
+      }
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +224,7 @@ export default function LoginPage() {
                   onClick={async () => {
                     setIsLoading(true);
                     try {
-                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/google/url`);
+                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/google/url?origin=store`);
                       const data = await res.json();
                       if (data.url) {
                         window.location.href = data.url;
