@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+// 1. TAMBAHKAN 'use' PADA IMPORT REACT
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation"; // 👈 IMPORT UNTUK BACA URL
 import { motion } from "framer-motion";
 import { Star, Minus, Plus, ShoppingCart, ShieldCheck, ArrowLeft, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import axiosInstance from "../../../lib/axios";
-import { addToCart } from "../../../lib/cart"; // Import fungsi keranjang
+import { addToCartDB } from "../../../lib/cart"; 
+import ProductReviews from "../../../components/ProductReviews";
+import toast from 'react-hot-toast';
+import { formatNumber } from "../../../lib/numberFormat";
 
 interface Product {
   id: number;
@@ -18,21 +22,53 @@ interface Product {
   stock: number;
   warehouse: string;
   image_url: string | null;
+  is_dropship_enabled?: boolean;
+  dropship_discount_type?: string;
+  dropship_discount_value?: number;
+  dropship_min_qty?: number;
 }
 
-export default function ProductDetail() {
-  const params = useParams();
+// 2. SESUAIKAN TIPE DATA PARAMS MENJADI PROMISE
+export default function ProductDetail({ params }: { params: Promise<{ id: string }> }) {
+  // 3. GUNAKAN 'use()' UNTUK MEMBUKA PROMISE PARAMS
+  const resolvedParams = use(params);
+  
+  // 👈 TANGKAP KODE AFILIASI DARI URL (Contoh: ?ref=KMB-JOKO123)
+  const searchParams = useSearchParams();
+  const refCode = searchParams.get('ref');
+
   const [qty, setQty] = useState(1);
+  const [isDropshipChecked, setIsDropshipChecked] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Mengambil data spesifik berdasarkan ID/Slug dari URL
   useEffect(() => {
+    // 🔥 FUNGSI PEREKAM KLIK AFILIASI (Berjalan di belakang layar)
+    const recordClick = async () => {
+      if (refCode && resolvedParams?.id) {
+        // Cek SessionStorage agar tidak spam hitung klik kalau user cuma refresh halaman
+        const hasClicked = sessionStorage.getItem(`clicked_${refCode}_${resolvedParams.id}`);
+        
+        if (!hasClicked) {
+          try {
+            // 👇 UPDATE DI SINI: Kirimkan product_id ke backend dalam bentuk Angka (Number)
+            await axiosInstance.post('/affiliate/track', { 
+              ref: refCode,
+              product_id: Number(resolvedParams.id) 
+            });
+            sessionStorage.setItem(`clicked_${refCode}_${resolvedParams.id}`, 'true');
+          } catch (err) {
+            console.error("Gagal merekam klik afiliasi", err);
+          }
+        }
+      }
+    };
+
     const fetchProductDetail = async () => {
       try {
-        // params.slug ini berisi ID produk (karena di katalog kita passing ID)
-        const response = await axiosInstance.get(`/products/${params?.slug}`);
+        // 4. GUNAKAN resolvedParams.id, BUKAN params.id LAGI
+        const response = await axiosInstance.get(`/products/${resolvedParams.id}`);
         const data = response.data.data || response.data;
         setProduct(data);
         setIsLoading(false);
@@ -43,36 +79,54 @@ export default function ProductDetail() {
       }
     };
 
-    if (params?.slug) {
+    if (resolvedParams?.id) {
       fetchProductDetail();
+      recordClick(); // 👈 PANGGIL SENSOR PEREKAM DI SINI
     }
-  }, [params?.slug]);
+  }, [resolvedParams?.id, refCode]); 
 
-  // Fungsi kebal error untuk format rupiah
   const formatIDR = (val: any) => {
     const num = Number(val) || 0; 
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!product) return;
+    
+    const token = localStorage.getItem("kambi_token");
+    if (!token) {
+      toast.error("Silakan masuk (login) ke akun Anda terlebih dahulu untuk berbelanja.");
+      return; // Bisa juga diarahkan dengan: router.push('/login')
+    }
+
     if (qty > product.stock) {
-      alert(`Maaf, stok hanya tersisa ${product.stock} pcs!`);
+      toast.error(`Maaf, stok hanya tersisa ${product.stock} pcs!`);
       return;
     }
 
-    // Eksekusi fungsi simpan ke memori
-    addToCart({
-      id: product.id,
-      slug: params?.slug as string,
-      name: product.name,
-      price: Number(product.price),
-      qty: qty,
-      image_url: product.image_url,
-      category: product.category || "Produk",
-    });
+    if (isDropshipChecked && product.is_dropship_enabled && qty < (product.dropship_min_qty || 1)) {
+      toast.error(`Gagal: Minimal pembelian untuk dropship adalah ${product.dropship_min_qty} pcs!`);
+      return;
+    }
 
-    alert(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
+    try {
+      await addToCartDB(product.id, qty);
+      
+      // Simpan niat dropship khusus untuk produk ini saat Add To Cart
+      let intentsStr = localStorage.getItem("kambi_dropship_intents");
+      let intents = intentsStr ? JSON.parse(intentsStr) : {};
+      
+      if (isDropshipChecked && product.is_dropship_enabled && qty >= (product.dropship_min_qty || 1)) {
+        intents[product.id] = true;
+      } else {
+        intents[product.id] = false;
+      }
+      localStorage.setItem("kambi_dropship_intents", JSON.stringify(intents));
+
+      toast.success(`Berhasil menambahkan ${qty}x ${product.name} ke keranjang! 🛒`);
+    } catch (error) {
+      toast.error("Gagal menambahkan ke keranjang. Silakan coba lagi.");
+    }
   };
 
   // --- STATE LOADING ---
@@ -150,10 +204,35 @@ export default function ProductDetail() {
             </div>
 
             {/* Fitur Utama & Info Stok */}
-            <div className="grid grid-cols-2 gap-4 mb-10">
-              <div className="flex items-center gap-3 text-[#2C352D]"><CheckCircle2 size={20} className="text-[#D4A373]"/> <span className="font-medium text-sm">Stok: {product.stock} pcs</span></div>
-              <div className="flex items-center gap-3 text-[#2C352D]"><CheckCircle2 size={20} className="text-[#D4A373]"/> <span className="font-medium text-sm">Dikirim dari: {product.warehouse}</span></div>
+            <div className="mb-6">
+              <div className="flex items-center gap-3 text-[#2C352D]">
+                <CheckCircle2 size={20} className="text-[#D4A373]"/> 
+                <span className="font-medium text-sm text-lg font-bold">Stok: {formatNumber(product.stock)} pcs (Tersedia)</span>
+              </div>
             </div>
+
+            {product.is_dropship_enabled && (
+              <div className="mb-8 bg-orange-50/50 p-4 rounded-2xl border border-orange-200">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={isDropshipChecked} 
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsDropshipChecked(checked);
+                      if (checked) {
+                        setQty(prev => Math.max(prev, product.dropship_min_qty || 1));
+                      }
+                    }} 
+                    className="w-5 h-5 accent-[#E65100] rounded cursor-pointer"
+                  />
+                  <span className="font-bold text-[#E65100]">Kirim sebagai Dropshipper</span>
+                </label>
+                <p className="text-xs text-orange-800 mt-2 font-medium">
+                  ✨ Dapatkan diskon khusus dropshipper <strong>{product.dropship_discount_type === 'percent' ? `${product.dropship_discount_value}%` : formatIDR(product.dropship_discount_value)}</strong> dengan minimal pembelian {product.dropship_min_qty} pcs!
+                </p>
+              </div>
+            )}
 
             {/* Action Area (Add to Cart) */}
             <div className="bg-white p-6 rounded-3xl border border-[#EAE6D9] shadow-sm">
@@ -161,8 +240,8 @@ export default function ProductDetail() {
                 
                 {/* Quantity Selector */}
                 <div className="flex items-center justify-between bg-[#FDFCF8] border border-[#EAE6D9] rounded-2xl p-2 sm:w-1/3">
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-10 h-10 flex items-center justify-center text-[#5A665A] hover:bg-white hover:shadow-sm rounded-xl transition-all"><Minus size={18}/></button>
-                  <span className="font-bold text-[#2C352D] text-lg">{qty}</span>
+                  <button onClick={() => setQty(Math.max(isDropshipChecked ? (product.dropship_min_qty || 1) : 1, qty - 1))} className="w-10 h-10 flex items-center justify-center text-[#5A665A] hover:bg-white hover:shadow-sm rounded-xl transition-all"><Minus size={18}/></button>
+                  <span className="font-bold text-[#2C352D] text-lg">{formatNumber(qty)}</span>
                   <button onClick={() => setQty(Math.min(product.stock, qty + 1))} className="w-10 h-10 flex items-center justify-center text-[#5A665A] hover:bg-white hover:shadow-sm rounded-xl transition-all"><Plus size={18}/></button>
                 </div>
 
@@ -176,7 +255,7 @@ export default function ProductDetail() {
 
           </motion.div>
         </div>
-
+        <ProductReviews productId={product.id} />
       </div>
     </div>
   );

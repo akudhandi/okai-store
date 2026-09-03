@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
+import { Suspense } from "react";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
-// 👇 Import komponen Navbar yang baru dibuat
+
+// 👇 Import komponen Navbar
 import Navbar from "@/components/Navbar"; 
+// 👇 Import komponen ChatWidget yang baru kita buat
+import ChatWidget from "@/components/ChatWidget"; 
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
@@ -18,14 +23,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
-      <body className={`${inter.variable} ${playfair.variable} font-sans`}>
+    <html lang="id" suppressHydrationWarning>
+      <body className={`${inter.variable} ${playfair.variable} font-sans`} suppressHydrationWarning>
+        <Toaster position="top-right" />
         {/* 👇 Panggil Navbar di sini */}
-        <Navbar />
+        <Suspense fallback={null}>
+          <Navbar />
+        </Suspense>
         
         {children}
         
         {/* Kalau ada Footer, biarkan di bawah sini */}
+        
+        {/* 👇 Panggil ChatWidget di sini agar mengambang di semua halaman */}
+        <ChatWidget />
       </body>
     </html>
   );

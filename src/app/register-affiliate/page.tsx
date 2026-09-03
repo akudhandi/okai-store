@@ -6,6 +6,7 @@ import { motion, Variants } from "framer-motion";
 import { ArrowLeft, CheckCircle2, Megaphone, Wallet, Link as LinkIcon, AtSign, Send, Phone, Lock, Loader2 } from "lucide-react";
 // Pastikan path ini sesuai dengan export axios kamu di folder lib
 import axios from "@/lib/axios"; 
+import toast from 'react-hot-toast';
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -41,6 +42,20 @@ export default function RegisterAffiliate() {
         const userObj = JSON.parse(userStr);
         setUserEmail(userObj.email); 
         setUserId(userObj.id); // Simpan ID user untuk dikirim ke backend
+
+        // Cek status affiliate saat ini
+        axios.get("/user/affiliate-status", {
+          headers: { Authorization: `Bearer ${token}` }
+        }).then(res => {
+          if (res.data.success) {
+            const data = res.data.data;
+            if (data && data.is_affiliate === true && data.status === 'active') {
+              toast.error("Anda sudah terdaftar sebagai mitra afiliasi!");
+              window.location.href = "/affiliate-dashboard";
+            }
+          }
+        }).catch(err => console.error("Gagal mengecek status affiliate:", err));
+
       } catch (e) {
         console.error("Gagal membaca data user");
       }
@@ -70,11 +85,11 @@ export default function RegisterAffiliate() {
       if (response.data.success || response.status === 200 || response.status === 201) {
         setIsSubmitted(true);
       } else {
-        alert("Gagal mengirim pengajuan: " + (response.data.message || "Terjadi kesalahan"));
+        toast.error("Gagal mengirim pengajuan: " + (response.data.message || "Terjadi kesalahan"));
       }
     } catch (error: any) {
       console.error("Error submitting affiliate request:", error);
-      alert(error.response?.data?.message || "Gagal menghubungi server. Pastikan koneksi internet stabil.");
+      toast.error(error.response?.data?.message || "Gagal menghubungi server. Pastikan koneksi internet stabil.");
     } finally {
       setIsSending(false);
     }

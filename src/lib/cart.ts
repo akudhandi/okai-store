@@ -1,53 +1,66 @@
 // src/lib/cart.ts
+import axiosInstance from "./axios";
 
+// Sesuaikan interface dengan struktur relasi tabel Carts & Products dari backend
 export interface CartItem {
-  id: number;
-  slug: string;
-  name: string;
-  price: number;
+  id: number;         // ID dari tabel carts (Primary Key)
+  product_id: number; // ID dari tabel products
   qty: number;
-  image_url: string | null;
-  category: string;
+  product: {          // Data produk hasil JOIN / Eloquent relasi dari backend
+    name: string;
+    price: number;
+    image_url: string | null;
+    category: string;
+    id: number;
+    is_dropship_enabled?: boolean;
+    dropship_min_qty?: number;
+    dropship_discount_type?: string;
+    dropship_discount_value?: number;
+    is_affiliate_enabled?: boolean;
+  };
 }
 
-// 1. Ambil isi keranjang saat ini
-export const getCart = (): CartItem[] => {
-  if (typeof window !== "undefined") {
-    const cart = localStorage.getItem("kambi_cart");
-    return cart ? JSON.parse(cart) : [];
+// Pastikan tipe CartItem sudah terdefinisi di file kamu
+// import axiosInstance from "./axios";
+
+export const getCartDB = async (): Promise<CartItem[]> => {
+  try {
+    const response = await axiosInstance.get("/carts");
+    return response.data.data || [];
+  } catch (error: any) {
+    // Tangkap error 401 secara spesifik
+    if (error.response && error.response.status === 401) {
+      console.warn("Sesi login kadaluarsa. Mengabaikan penarikan keranjang.");
+      
+      // Opsional: Kamu bisa otomatis menghapus token yang sudah basi di sini
+      // localStorage.removeItem("kambi_token");
+      // localStorage.removeItem("kambi_user");
+      
+      return []; // Return array kosong agar tidak membuat aplikasi crash
+    }
+    
+    console.error("Gagal mengambil keranjang:", error);
+    return []; // Pastikan selalu mengembalikan array
   }
-  return [];
 };
 
-// 2. Tambah barang ke keranjang
-export const addToCart = (item: CartItem) => {
-  const cart = getCart();
-  const existingItemIndex = cart.findIndex((cartItem) => cartItem.id === item.id);
+// 2. Tambah barang ke keranjang Database
+export const addToCartDB = async (product_id: number, qty: number) => {
+  const response = await axiosInstance.post("/carts", { product_id, qty });
+  window.dispatchEvent(new Event("cartUpdated")); // Update indikator angka di Navbar
+  return response.data;
+};
 
-  if (existingItemIndex > -1) {
-    // Kalau barang sudah ada, tambahkan jumlahnya (qty)
-    cart[existingItemIndex].qty += item.qty;
-  } else {
-    // Kalau barang baru, masukkan ke daftar
-    cart.push(item);
-  }
-
-  localStorage.setItem("kambi_cart", JSON.stringify(cart));
-  
-  // Beritahu Navbar (dan komponen lain) bahwa keranjang baru saja diupdate!
+// 3. Update jumlah (qty) barang
+export const updateCartQtyDB = async (cart_id: number, qty: number) => {
+  const response = await axiosInstance.put(`/carts/${cart_id}`, { qty });
   window.dispatchEvent(new Event("cartUpdated"));
+  return response.data;
 };
 
-// 3. Hapus barang
-export const removeFromCart = (id: number) => {
-  const cart = getCart();
-  const updatedCart = cart.filter((item) => item.id !== id);
-  localStorage.setItem("kambi_cart", JSON.stringify(updatedCart));
+// 4. Hapus barang dari Database
+export const removeFromCartDB = async (cart_id: number) => {
+  const response = await axiosInstance.delete(`/carts/${cart_id}`);
   window.dispatchEvent(new Event("cartUpdated"));
-};
-
-// 4. Hitung total qty (untuk angka merah di Navbar)
-export const getCartTotalQty = (): number => {
-  const cart = getCart();
-  return cart.reduce((total, item) => total + item.qty, 0);
+  return response.data;
 };

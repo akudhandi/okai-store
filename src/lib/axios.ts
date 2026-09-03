@@ -21,4 +21,33 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 });
 
+// DEDUPLIKASI REQUEST: Cache promise untuk /user/affiliate-status agar tidak dipanggil berulang-ulang
+const originalGet = axiosInstance.get;
+const promiseCache = new Map<string, Promise<any>>();
+
+axiosInstance.get = function (url: string, config?: any) {
+  const normalizedUrl = url.replace(/^\/|\/$/g, '');
+  
+  if (normalizedUrl === 'user/affiliate-status') {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kambi_token') : null;
+    if (!token) {
+      return originalGet.call(this, url, config);
+    }
+    
+    const cacheKey = `${normalizedUrl}:${token}`;
+    
+    if (!promiseCache.has(cacheKey)) {
+      const promise = originalGet.call(this, url, config).catch((err) => {
+        promiseCache.delete(cacheKey); // Hapus jika error agar bisa dicoba lagi nanti
+        throw err;
+      });
+      promiseCache.set(cacheKey, promise);
+    }
+    
+    return promiseCache.get(cacheKey)!;
+  }
+  
+  return originalGet.call(this, url, config);
+};
+
 export default axiosInstance;

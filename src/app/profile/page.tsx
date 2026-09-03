@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, Mail, Lock, ShieldCheck, Loader2, Save, LogOut } from "lucide-react";
 import axiosInstance from "../../lib/axios";
+import AffiliateMenu from "@/components/AffiliateMenu";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -15,6 +16,14 @@ export default function ProfilePage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone_number, setPhoneNumber] = useState("");
+  
+  // State Alamat Terpisah
+  const [street, setStreet] = useState("");
+  const [district, setDistrict] = useState("");
+  const [city, setCity] = useState("");
+  const [province, setProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -33,10 +42,39 @@ export default function ProfilePage() {
     try {
       const userObj = JSON.parse(userStr);
       setUserId(userObj.id);
-      setName(userObj.name);
-      setEmail(userObj.email);
-      setRole(userObj.role || "Customer");
-      setIsLoading(false);
+      
+      // Ambil data terbaru dari server untuk mendapat alamat lengkap & no hp
+      const fetchUserData = async () => {
+        try {
+          const res = await axiosInstance.get(`/users/${userObj.id}`);
+          const userData = res.data.data;
+          
+          setName(userData.name || userObj.name);
+          setEmail(userData.email || userObj.email);
+          setPhoneNumber(userData.phone_number || "");
+          setRole(userData.role || userObj.role || "Customer");
+          
+          // Pecah format alamat jika ada: "Jalan A, Kecamatan B, Kota C, Provinsi D, 12345"
+          if (userData.address) {
+            const parts = userData.address.split(",").map((p: string) => p.trim());
+            if (parts.length >= 5) {
+              setPostalCode(parts.pop() || "");
+              setProvince(parts.pop() || "");
+              setCity(parts.pop() || "");
+              setDistrict(parts.pop() || "");
+              setStreet(parts.join(", ") || "");
+            } else {
+              setStreet(userData.address); // Fallback jika format lama
+            }
+          }
+        } catch (e) {
+          console.error("Gagal load detail user", e);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchUserData();
     } catch (e) {
       console.error("Gagal membaca data");
       router.push("/login");
@@ -47,11 +85,25 @@ export default function ProfilePage() {
     e.preventDefault();
     if (!userId) return;
 
+    if (!street || !district || !city || !province || !postalCode || !phone_number) {
+      setMessage({ type: 'error', text: 'Mohon lengkapi seluruh data alamat dan nomor telepon.' });
+      return;
+    }
+
     setIsSaving(true);
     setMessage(null);
 
+    // Format otomatis penggabungan alamat
+    const combinedAddress = `${street}, ${district}, ${city}, ${province}, ${postalCode}`;
+
     try {
-      const payload: any = { name, email };
+      const payload: any = { 
+        name, 
+        email,
+        phone_number,
+        address: combinedAddress
+      };
+      
       // Hanya kirim password jika diisi
       if (password.trim() !== "") {
         payload.password = password;
@@ -90,7 +142,60 @@ export default function ProfilePage() {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen flex justify-center items-center"><Loader2 className="animate-spin text-[#D4A373]" size={40}/></div>;
+    return (
+      <div className="min-h-screen bg-[#FDFCF8] pt-10 pb-24 px-4 sm:px-6 lg:px-8 animate-pulse">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row gap-8">
+          {/* KOLOM KIRI SKELETON */}
+          <div className="w-full md:w-1/3">
+            <div className="bg-white border border-[#EAE6D9] rounded-[2rem] p-8 shadow-sm flex flex-col items-center text-center sticky top-28">
+              <div className="w-24 h-24 bg-gray-200 rounded-full mb-4"></div>
+              <div className="w-32 h-6 bg-gray-200 rounded-lg mb-2"></div>
+              <div className="w-48 h-4 bg-gray-200 rounded-lg mb-4"></div>
+              <div className="w-24 h-6 bg-gray-200 rounded-full mb-6"></div>
+              <div className="w-full h-12 bg-gray-200 rounded-xl mb-6"></div>
+              <div className="w-full h-12 bg-gray-200 rounded-xl"></div>
+            </div>
+          </div>
+
+          {/* KOLOM KANAN SKELETON */}
+          <div className="w-full md:w-2/3">
+            <div className="bg-white border border-[#EAE6D9] rounded-[2rem] p-8 md:p-10 shadow-sm space-y-6">
+              <div className="w-48 h-8 bg-gray-200 rounded-lg mb-2"></div>
+              <div className="w-64 h-4 bg-gray-200 rounded-lg mb-8"></div>
+              
+              <div className="space-y-4">
+                <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+              </div>
+
+              <hr className="border-[#EAE6D9] my-6" />
+              
+              <div className="w-48 h-6 bg-gray-200 rounded-lg mb-4"></div>
+              <div className="space-y-4">
+                <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                  <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                  <div className="w-full h-14 bg-gray-200 rounded-xl"></div>
+                </div>
+              </div>
+
+              <hr className="border-[#EAE6D9] my-6" />
+
+              <div className="w-full h-14 bg-gray-200 rounded-xl mb-6"></div>
+              
+              <div className="flex justify-end">
+                <div className="w-48 h-14 bg-gray-200 rounded-xl"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -106,8 +211,13 @@ export default function ProfilePage() {
             <h2 className="text-xl font-bold text-[#2C352D] font-playfair mb-1">{name}</h2>
             <p className="text-sm text-[#5A665A] mb-4">{email}</p>
             
-            <div className="px-4 py-1.5 bg-[#EAE6D9]/50 border border-[#EAE6D9] text-[#5A665A] text-xs font-bold uppercase tracking-widest rounded-full mb-8">
+            <div className="px-4 py-1.5 bg-[#EAE6D9]/50 border border-[#EAE6D9] text-[#5A665A] text-xs font-bold uppercase tracking-widest rounded-full mb-6">
               {role}
+            </div>
+
+            {/* Menu Affiliate (Hanya Muncul Jika Status Active) */}
+            <div className="w-full flex justify-center mb-6">
+              <AffiliateMenu />
             </div>
 
             <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 text-red-600 font-semibold hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100">
@@ -146,6 +256,48 @@ export default function ProfilePage() {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5A665A]"><Mail size={18}/></span>
                   <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl pl-12 pr-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all" />
+                </div>
+              </div>
+
+              {/* TELEPON */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nomor Telepon</label>
+                <div className="relative">
+                  <input required type="text" placeholder="08..." value={phone_number} onChange={(e) => setPhoneNumber(e.target.value)} className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all" />
+                </div>
+              </div>
+
+              <hr className="border-[#EAE6D9] my-6" />
+
+              <h2 className="text-xl font-semibold text-[#2C352D] font-playfair mb-4">Informasi Pengiriman</h2>
+
+              {/* ALAMAT */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Nama Jalan / Gedung / Patokan</label>
+                  <input required type="text" value={street} onChange={(e) => setStreet(e.target.value)} placeholder="Contoh: Jl. Sudirman No 12, RT 01/RW 02" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kecamatan</label>
+                    <input required type="text" value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="Contoh: Kebayoran Baru" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kota / Kabupaten</label>
+                    <input required type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Contoh: Jakarta Selatan" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Provinsi</label>
+                    <input required type="text" value={province} onChange={(e) => setProvince(e.target.value)} placeholder="Contoh: DKI Jakarta" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#5A665A] uppercase tracking-widest pl-1">Kode Pos</label>
+                    <input required type="number" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Contoh: 12160" className="w-full bg-[#FDFCF8] border border-[#EAE6D9] rounded-xl px-4 py-3.5 text-[#2C352D] focus:ring-2 focus:ring-[#D4A373]/50 focus:border-[#D4A373] outline-none transition-all" />
+                  </div>
                 </div>
               </div>
 
